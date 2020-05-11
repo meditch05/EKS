@@ -1,5 +1,87 @@
 ############################################################################################################################################################
-# [ EKS Cluster 생성 ] - eksctl 만 사용
+# [ Bastion 서버 생성 ]
+############################################################################################################################################################
+1. Bastion 서버 생성 / 환경구성
+	- AMI					: Amazon EKS-Optimized Amazon Linux AMI
+	- InstanceSize			: t3a.small
+	- Subnet				: service-nat-public-p-subnet1
+	- Auto-assign Public IP	: Enable
+	- Key Pair				: FFP-d-key.pem
+	=> Docker 써야 하니까.
+	
+	#- AMI 			: CentOS 7 (x86_64) - with Updates HVM
+	#- InstanceSize	: t3a.micro
+	
+2. Bastion 서버 접속 SSH 구성
+    - puttygen 설치
+	- pem -> ppk 로 변경
+	- MobaXterm에서 SSH -> Private key 에 ppk 파일 지정
+	- ec2-user 로 로그인
+	
+3. Bastion 서버 점검 / TimeZone 변경
+	# kubectl version
+	# docker  version
+	
+	# sudo timedatectl set-timezone Asia/Seoul
+	# date
+	
+	=====================================
+	[ Bastion 서버 구성 - Docker Repository 연결 설정 ( 생성한 ECR 정보 ) ]
+	=====================================
+	# echo {\"insecure-registries\": [\"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com\"]} | jq . > /etc/docker/daemon.json
+	
+	
+	=====================================
+	[ Bastion 서버 구성 - AWS CLI - Configure ( Authentication 구성 ) ]
+	=====================================	
+	# aws configure
+	  - Access Key ID					: AKIAZMKVASO3IMJHR2WI ( AWS콘솔 -> IAM -> User -> Security credentials )
+	  - Secret access key				: FQyT4VBuf6FLT1NBtc5rxy2ufmppU3qb6bk4c1ek ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
+	  - Default region name [None]		: ap-northeast-2
+	  - Default output format [None]	: json
+	# aws iam list-access-keys | jq .
+	# aws ec2 describe-instances | jq .
+	# aws ec2 describe-vpcs | jq '.Vpcs[] | .VpcId'
+	# aws ec2 describe-vpcs | jq '.Vpcs[] | .VpcId, .CidrBlock'
+	
+	=====================================
+	[ Bastion 서버 구성 - git ]
+	=====================================	
+	# sudo yum install -y git
+	
+	=====================================
+	[ Bastion 서버 구성 - eksctl 구성 ]
+	=====================================	
+	[ eksctl 설치 ]
+	# echo "export PATH=${PATH}:/usr/local/bin:." >> ~/.bash_profile
+	# . ~/.bash_profile
+	
+	# curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+	# sudo mv /tmp/eksctl /usr/local/bin
+	# eksctl version
+	0.18.0
+	
+	=====================================
+	[ Bastion 서버 구성 - ssh keygen 구성 ]
+	=====================================	
+	# ssh-keygen
+
+4. EKS CLUSTER 생성 ( eksctl 사용 )
+	# git clone https://github.com/meditch05/QA.git
+	# mv QA EKS
+	# cd EKS/cluster
+	# date; eksctl create cluster -f ffp-cluster-type2.yaml; date
+
+	[ 오류 1 ]
+	# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
+	
+	- 테스트 1 ( # https://eksctl.io/usage/autoscaling/ )
+	  추가1
+	  # availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]
+
+
+############################################################################################################################################################
+# [ EKS Cluster 운영환경 구성 ]
 ############################################################################################################################################################
 ※ EKSCTL 사용시 EKS에 필요한 모드 Resource들을 CloudFormation으로 다 만들어준다
    => 별도의 CloudFormation을 사용할 필요가 없음
@@ -869,87 +951,6 @@ t2.micro		1		i386, x86_64	1024			-				-				Low to Moderate			0.0144 USD per Hour
 
 	
 	
-
-	
-4. Bastion 서버 생성 / 환경구성
-	- AMI					: Amazon EKS-Optimized Amazon Linux AMI
-	- InstanceSize			: t3a.small
-	- Subnet				: service-nat-public-p-subnet1
-	- Auto-assign Public IP	: Enable
-	- Key Pair				: FFP-d-key.pem
-	=> Docker 써야 하니까.
-	
-	#- AMI 			: CentOS 7 (x86_64) - with Updates HVM
-	#- InstanceSize	: t3a.micro
-	
-	=====================================
-	[ Bastion 서버 접속 SSH 구성 ]
-	=====================================
-	# vi ssh.bastion.show
-	#!/bin/bash
-	
-	HOST=ec2-13-125-228-111.ap-northeast-2.compute.amazonaws.com
-	KEY=/root/FFP-d-key.pem
-	
-	ssh -i ${KEY} ec2-user@${HOST}
-	
-	# ssh.bastion.sh	
-	=====================================
-	[ Bastion 서버 점검 / TimeZone 변경 ]
-	=====================================	
-	# kubectl version
-	# docker  version
-	
-	# sudo timedatectl set-timezone Asia/Seoul
-	# date
-	
-	=====================================
-	[ Bastion 서버 구성 - Docker Repository 연결 설정 ( 생성한 ECR 정보 ) ]
-	=====================================
-	# echo {\"insecure-registries\": [\"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com\"]} | jq . > /etc/docker/daemon.json
-	
-	
-	=====================================
-	[ Bastion 서버 구성 - AWS CLI - Configure ( Authentication 구성 ) ]
-	=====================================	
-	# aws configure
-	  - Access Key ID					: AKIAZMKVASO3IMJHR2WI ( AWS콘솔 -> IAM -> User -> Security credentials )
-	  - Secret access key				: FQyT4VBuf6FLT1NBtc5rxy2ufmppU3qb6bk4c1ek ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
-	  - Default region name [None]		: ap-northeast-2
-	  - Default output format [None]	: json
-	# aws iam list-access-keys | jq .
-	# aws ec2 describe-instances | jq .
-	
-	=====================================
-	[ Bastion 서버 구성 - eksctl 구성 ]
-	=====================================	
-	[ eksctl 설치 ]
-	# echo "export PATH=${PATH}:/usr/local/bin:." >> ~/.bash_profile
-	# . ~/.bash_profile
-	
-	# curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-	# sudo mv /tmp/eksctl /usr/local/bin
-	# sudo eksctl version
-	0.17.0
-	
-	=====================================
-	[ EKS Cluster 생성 - ffp-cluster-type2.yaml ]
-	=====================================
-	# mkdir -p EKS/cluster
-	# vi EKS/cluster/ffp-cluster-type2.yaml
-	# date; eksctl create cluster -f ffp-cluster-type2.yaml; date
-
-
-	
-5. EKS CLUSTER 생성 ( eksctl 사용 )
-	# date; eksctl create cluster -f ffp-cluster-type2.yaml; date
-
-	[ 오류 1 ]
-	# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
-	
-	- 테스트 1 ( # https://eksctl.io/usage/autoscaling/ )
-	  추가1
-	  # availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]
 
 
 
