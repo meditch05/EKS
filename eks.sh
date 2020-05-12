@@ -1,6 +1,7 @@
 ############################################################################################################################################################
 # [ Bastion 서버 생성 ]
 ############################################################################################################################################################
+
 1. Bastion 서버 생성 / 환경구성
 	- AMI					: Amazon EKS-Optimized Amazon Linux AMI
 	- InstanceSize			: t3a.small
@@ -62,22 +63,47 @@
 	0.18.0
 	
 	=====================================
+	[ Bastion 서버 구성 - kubectl 구성 ]
+	=====================================	
+	# kubectl_ver=`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`
+	# curl -LO https://storage.googleapis.com/kubernetes-release/release/${kubectl_ver}/bin/linux/amd64/kubectl
+	# chmod +x ./kubectl
+	# sudo mv  ./kubectl /usr/local/bin/kubectl
+	# kubectl version --client
+	
+	=====================================
 	[ Bastion 서버 구성 - ssh keygen 구성 ]
 	=====================================	
 	# ssh-keygen
+	
+4. 실습용 Git Repository 정보 등록 / get ( ID/PWD 저장 )
 
-4. EKS CLUSTER 생성 ( eksctl 사용 )
 	# git clone https://github.com/meditch05/QA.git
 	# mv QA EKS
+	
+			# git config user.name "meditch05"
+			# git config user.email "meditch05@gmail.com"
+			# echo "TEST document" >> document.sh
+			# git add document.sh
+			# git commit -m "add document.sh"
+			# git push https://github.com/meditch05/QA.git
+			# git config credential.helper store --global
+
+
+5. EKS CLUSTER 생성 ( eksctl 사용 )
+
 	# cd EKS/cluster
 	# date; eksctl create cluster -f ffp-cluster-type2.yaml; date
 
-	[ 오류 1 ]
-	# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
+			[ 오류 1 ]
+			# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
+		
+			- 테스트 1 ( # https://eksctl.io/usage/autoscaling/ )
+			추가1
+			# availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]	  
+
 	
-	- 테스트 1 ( # https://eksctl.io/usage/autoscaling/ )
-	  추가1
-	  # availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]
+	# aws eks describe-cluster --name eks-meditch05 | jq '.cluster |.name, .endpoint, .resourcesVpcConfig'
 
 
 ############################################################################################################################################################
@@ -92,6 +118,7 @@
    - ServiceRole
    - InternetGateway
    - SecurityGroup
+
 
 1. EKS Cluster 생성
 
