@@ -459,19 +459,22 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	# helm inspect values stable/nginx-ingress > values.yaml.ingress-nginx.ori
 	# cp values.yaml.ingress-nginx.ori values.yaml.ingress-nginx.edit
 	# vi values.yaml.ingress-nginx.edit
-	# diff values.yaml.ingress-nginx.ori values.yaml.ingress-nginx.edit
-		40c40
-		<   hostNetwork: false
-		---
-		>   hostNetwork: true
-		56c56
-		<     useHostPort: false
-		---
-		>     useHostPort: true
-		134c134
-		<   kind: Deployment
-		---
-		>   kind: DaemonSet
+	# diff values.yaml.ingress-nginx.edit values.yaml.ingress-nginx.ori
+        134c134
+        <   kind: Deployment
+        ---
+        >   kind: DaemonSet
+        196c196,197
+        <   nodeSelector: {}
+        ---
+        >   nodeSelector:
+        >     role: proxy
+        247c248,250
+        <     annotations: {}
+        ---
+        >     annotations:
+        >       service.beta.kubernetes.io/aws-load-balancer-type: nlb
+
 
 
 	# helm install --name ingress-nginx --namespace infra -f values.yaml.ingress-nginx.edit stable/nginx-ingress
