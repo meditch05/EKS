@@ -1,5 +1,5 @@
 ############################################################################################################################################################
-# [ Bastion 서버 생성 ] - 2020.05.12 18:15
+# [ Bastion 서버 생성 ]
 ############################################################################################################################################################
 
 1. Bastion 서버 생성 / 환경구성
@@ -20,25 +20,23 @@
 	- ec2-user 로 로그인
 	
 3. Bastion 서버 점검 / TimeZone 변경
-	# kubectl version
-	# docker  version
-	
 	# sudo timedatectl set-timezone Asia/Seoul
 	# date
 
+
 	
-	=====================================
-	[ Bastion 서버 구성 - Docker Repository 연결 설정 ( 생성한 ECR 정보 ) ]
-	=====================================
-	# echo {\"insecure-registries\": [\"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com\"]} | jq . > /etc/docker/daemon.json
+			=====================================
+			[ Bastion 서버 구성 - Docker Repository 연결 설정 ( 생성한 ECR 정보 ) ]
+			=====================================
+			# echo {\"insecure-registries\": [\"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com\"]} | jq . > /etc/docker/daemon.json
 	
 	
 	=====================================
 	[ Bastion 서버 구성 - AWS CLI - Configure ( Authentication 구성 ) ]
 	=====================================	
 	# aws configure
-	  - Access Key ID			: KKKKK ( AWS콘솔 -> IAM -> User -> Security credentials )
-	  - Secret access key			: KKKKK ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
+	  - Access Key ID					: ( AWS콘솔 -> IAM -> User -> Security credentials )
+	  - Secret access key				: ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
 	  - Default region name [None]		: ap-northeast-2
 	  - Default output format [None]	: json
 	# aws iam list-access-keys | jq .
@@ -71,12 +69,13 @@
 	# curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 	# sudo mv /tmp/eksctl /usr/local/bin
 	# eksctl version
-	0.18.0
+	0.19.0
 	
 	=====================================
 	[ Bastion 서버 구성 - kubectl 구성 ]
 	=====================================	
 	# kubectl_ver=`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`
+	# echo $kubectl_ver
 	# curl -LO https://storage.googleapis.com/kubernetes-release/release/${kubectl_ver}/bin/linux/amd64/kubectl
 	# chmod +x ./kubectl
 	# sudo mv  ./kubectl /usr/local/bin/kubectl
@@ -94,22 +93,18 @@
 	
 4. 실습용 Git Repository 정보 등록 / get ( ID/PWD 저장 )
 
-	# git clone https://github.com/meditch05/QA.git
-	# mv QA EKS
-	
+	# git clone https://github.com/meditch05/EKS.git
+		
 			# git config user.name "meditch05"
 			# git config user.email "meditch05@gmail.com"
-			# echo "TEST document" >> document.sh
-			# git add document.sh
-			# git commit -m "add document.sh"
-			# git push https://github.com/meditch05/QA.git
+			# git push https://github.com/meditch05/EKS.git
 			# git config credential.helper store --global
 
 
 5. EKS CLUSTER 생성 ( eksctl 사용 )
 
 	# cd EKS/cluster
-	# date; eksctl create cluster -f ffp-cluster-type2.yaml; date
+	# date; eksctl create cluster -f eks-meditch05.yaml; date
 
 			[ 오류 1 ]
 			# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
@@ -230,9 +225,10 @@
 	# mkdir ~/EKS/cluster/HELM/redis
 	# cd    ~/EKS/cluster/HELM/redis
 	# helm inspect values stable/redis-ha > values.yaml.redis.ori
-	# vi values.yaml.redis.ori
+	# cp values.yaml.redis.ori values.yaml.redis.edit
+	# vi values.yaml.redis.edit
 	# kubectl create ns infra
-	# helm install --name redis-ha --namespace infra stable/redis
+	# helm install --name redis-ha --namespace infra -f values.yaml.redis.edit stable/redis
 	
 	# kc get pod -n infra -o wide
 	NAME                READY   STATUS    RESTARTS   AGE   IP              NODE                                               NOMINATED NODE   READINESS GATES
@@ -322,7 +318,7 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	---------------------------------
 	# aws ecr get-login
 	
-	docker login -u AWS -p eyJwYXlsb2FkIjoiRFJML1FQZEJXMzdxZnI0YTlxUkJFTlZrMlo1NkIxNGZML0RiK2hVdzE2Ujd0Q3dSWWFjWVBLQnlDRkZQNHlFUzRBRVQ3UGZmNGhYblJ1YzZhcW8rNkhoVENHM1JRVUJ6SGlhS1cwRkN6a0tWZjVGQ09WOXI1Y1g5ZGZHOGlJeGIrbG5FaXI5MFFsQ3VBRWhRNHQ5YmdSZFJoQURMbTQwRWZVNTkvUmRUbm02RTFiSDUvd3M1c2VVYSsveUViS1MrUVdQZkZZci80ZlV0T2xWTUpHejR6M0M5MjQ4KzVsS29UNWV6L2FTTk9wTWFyMXJsYmtMUTRQQ2p6dWcrMzg1U0tlRG1vR1BlV0xCVzNYRjJZSENhV1FkbTRJcTNiL1ZWV01LWVZhdG5mWUVaMWpPemlLWlIzRkhmeDRraVNpbXZ1cFhYd3ZES24razJSZUNsSkpCVWxhNDZwSEp2L1VnV08waFVaQzFSTDJNcmhvRXRVeExoSVlLWDNZNENTOHh4ZHJQNk5ZeFZBem9DZVZMNFJodmgxR1Z0dDBHMFlVdGl3cmJtSFhKSm85dG45TndjMXpaODBycldYeFhJVkJHWG84d1I4RHZLdm1uUFdKT3Q0ZS9WbEowSVVVTVMwNlR6eVpZbEYwUW9CbnJlcFpDRmJHQnJGa1lITm0wZldPOEozWStSREx5NWlCa3ZLNUFXWEZYYU9ma1RmbXViUEJwR1RZOW84TkExRkFnWXFrd3hBdmRmYmZvL1JESVFsNjMvdW9nbGhnelZBckovOVI5MXhTN3dsMjJjK05xeEczVVRNVm03Y1grL3E2aU5WYVNMSEJMTmV1VS9sYi9YSUo1N3dEZnczRlloaFgvQ29GRVY1ZVVVZUdNUXBPdGdPWmxoVmtFZ0t1Q2FzYmtNYTVZZDFQM1ROTmlOdXFvSWQzeGpHSlViN1JxTzEybTUvYTNFcFJ1VTBZUWhIZlJhaHZZQzZtT016c1c1VmlSNU1FT2twVnRDU2FEYllpVFcycy91b3NzMW1WSkduTGo3Znl1VXprRlpmTWpWdXhGQk15RUNlZzlLanBhUW9sc3pOWG5xT1ZnTGlMcE5XWDY0N2p0SkU1dXVDMXNubDRYK3F0TU4yQVNVU1FUOVcwbUQ3dDBzN0t0aVVjREpqaG5FSjI4SjZJdE1IWUJiZ3RTRWlHTWhxNEJkV1JRTEhuWHVPaE1LdVhybjZ4NmpiN1pzU1Jlc1ZLSVlDc09Eb1h5WE5NMkJaZEtGaTlRNSttd3dLU0N2OFNjcGZWWUlKNnUyaVBSNUx3OU5LUnp6RW5pT01EM3NqTFQvbUZFdk5DME1GOTliQlZHMWFNdXRFOUxLcHNWYk95eDRQVlpGamxyWEp6SWFxZGoxVlN0STVsZUFFbm9XeVNBellOQXNYY2lUQlZQeFBNRnBINXhzTGdQMEVISHUzM000akN6akpxdDVycFVXU1ZORW5mNlZ3Tkx3eXBvPSIsImRhdGFrZXkiOiJBUUlCQUhoQU9zYVcyZ1pOMDlXTnROR2tZYzhxcDExeFNoWi9kckVFb3kxSGs4TFhXZ0ZGVTFlZkdnNTBDY1pyMXFqUFhkTDlBQUFBZmpCOEJna3Foa2lHOXcwQkJ3YWdiekJ0QWdFQU1HZ0dDU3FHU0liM0RRRUhBVEFlQmdsZ2hrZ0JaUU1FQVM0d0VRUU1YdURFOWNIQnpkOUxncTdxQWdFUWdEc29vc0txSWRRZ3JJbzd0WlJseEhJLzZiVnExcHdwZUlSQ252c1lxVUpYOW5pK3lPSU5tVTdXZHRmVlVKMVkvRk1UL3k0TVNBeitEUXlKcUE9PSIsInZlcnNpb24iOiIyIiwidHlwZSI6IkRBVEFfS0VZIiwiZXhwaXJhdGlvbiI6MTU4NzEzMzg1MH0= -e none https://644960261046.dkr.ecr.ap-northeast-2.amazonaws.com
+	docker login -u AWS -p KKKKK -e none https://644960261046.dkr.ecr.ap-northeast-2.amazonaws.com
 	
 	# export ECR_URL=`   aws ecr describe-repositories | jq -r .repositories[].repositoryUri | cut -d"/" -f1 | uniq`
 	# export ECR_PASSWD=`aws ecr get-login | cut -d" " -f6`
@@ -398,7 +394,7 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 				# kubectl create secret docker-registry ecr1	\
 				--docker-server="644960261046.dkr.ecr.ap-northeast-2.amazonaws.com"			\
 				--docker-username="AWS"					\
-				--docker-password="KKK"					\
+				--docker-password="KKKKKKKKKKKKKKK"					\
 				--docker-email="meditch@naver.com"
 				
 				# kubectl get secret ecr1 --output=yaml
@@ -414,7 +410,8 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 					"repositories": []
 				}	  
 				# aws ecr get-login-password
-				KKKK
+				KKKKKKKKKKKKKKK
+				==
 				
 				# export ECR_URL="644960261046.dkr.ecr.ap-northeast-2.amazonaws.com"
 				# export ECR_PASSWD=`aws ecr get-login-password`	
@@ -434,7 +431,7 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 				{
 						"auths": {
 								"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com": {
-										"auth": "KKKK"
+										"auth": "KKKKK="
 								}
 						}
 				}
@@ -663,9 +660,37 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	
 	
 	* 접속 TEST
-	# curl -I -H "Host: ffptest.com" http://a732bae8f852b44acbaa3ddc7c22a9dc-518580590.ap-northeast-2.elb.amazonaws.com/banana
-	# curl -I -H "Host: ffptest.com" http://a732bae8f852b44acbaa3ddc7c22a9dc-518580590.ap-northeast-2.elb.amazonaws.com/apple
+	# curl -H "Host: ffptest.com" http://a732bae8f852b44acbaa3ddc7c22a9dc-518580590.ap-northeast-2.elb.amazonaws.com/banana
+	# curl -H "Host: ffptest.com" http://a732bae8f852b44acbaa3ddc7c22a9dc-518580590.ap-northeast-2.elb.amazonaws.com/apple
 	
+
+
+==========================
+해야할거
+==========================
+1. Route53 에서 Domain 따서 NLB로 붙여서 해보기
+	# curl http://ffptest.com/banana
+	# curl http://ffptest.com/apple
+   
+1. EFS 구성
+2. EFS Provisioner 구성
+3. EFS 써서 PVC 만들기
+4. PVC 사용하는 Sample App 개발/배포
+5. 잘되는지 보기
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	
 
 	
@@ -1067,8 +1092,8 @@ t2.micro		1		i386, x86_64	1024			-				-				Low to Moderate			0.0144 USD per Hour
 	
 	[ AWS CLI - Configure ( Authentication 구성 ) ]
 	# aws configure
-	  - Access Key ID					: AKIAZMKVASO3IMJHR2WI ( AWS콘솔 -> IAM -> User -> Security credentials )
-	  - Secret access key				: FQyT4VBuf6FLT1NBtc5rxy2ufmppU3qb6bk4c1ek ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
+	  - Access Key ID					: KKKKK ( AWS콘솔 -> IAM -> User -> Security credentials )
+	  - Secret access key				: KKKKK ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
 	  - Default region name [None]		: ap-northeast-2
 	  - Default output format [None]	: json
 	# aws iam list-access-keys | jq .
@@ -1089,13 +1114,13 @@ t2.micro		1		i386, x86_64	1024			-				-				Low to Moderate			0.0144 USD per Hour
 4. EKS용 CloudStack 생성 ( EKS-NODEGROUP-STACK )
    => 03_sk-IaC-infra-vpc-svc-EKSNodeGroup.yaml 파일
 	  - ParentStackName 	: EKS-CLUSTER-STACK   ( 2에서 생성한 STACK명 )
-	  - StackCreater		: kjh-00004-aws-d ( IAM User명 )
+	  - StackCreater		: KKKKK ( IAM User명 )
 	  - EKS Cluster 		: FFP-EKS
 	  - NodeGroupName 		: EKS-NODEGROUP
       - NodeInstanceType	: t3.medium ( 2 core / 4 GB )
 	  - NodeImagedId		: ami-08a18de5609e8f781 ( 구글에서 "EKS AMI"로 Search )
 	  - NodeVolumeSize		: 40
-	  - KeyName				: ffp key ( 93:92:7e:cc:10:e6:a4:a3:18:07:da:4f:be:c6:0b:de:e1:8b:ed:e2 )
+	  - KeyName				: ffp key ( KKKKK )
 	  - Worker Network Configuration - SubNets	: service-nodegrp1-private-d-subnet1 ( 10.166/0.128/16 )
 	  
 	  ※ IAM을 생성한다는 Noti에 Check 하고 생성
