@@ -10,7 +10,7 @@ spec:
     - name: banana-app
       image: hashicorp/http-echo
       args:
-        - "-text=banana"
+        - "-text=<html><header><title>Banana</title></header><body>ffptest.com/banana</body></html>"
 ---
 kind: Service
 apiVersion: v1

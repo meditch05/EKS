@@ -10,7 +10,7 @@ spec:
     - name: apple-app
       image: hashicorp/http-echo
       args:
-        - "-text=apple"
+        - "-text=<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>"
 ---
 kind: Service
 apiVersion: v1

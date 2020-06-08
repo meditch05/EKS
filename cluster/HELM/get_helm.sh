@@ -17,9 +17,7 @@
 # The install script is based off of the MIT-licensed script from glide,
 # the package manager for Go: https://github.com/Masterminds/glide.sh/blob/master/get
 
-PROJECT_NAME="helm"
-TILLER_NAME="tiller"
-
+: ${BINARY_NAME:="helm"}
 : ${USE_SUDO:="true"}
 : ${HELM_INSTALL_DIR:="/usr/local/bin"}
 
@@ -79,12 +77,11 @@ verifySupported() {
 checkDesiredVersion() {
   if [ "x$DESIRED_VERSION" == "x" ]; then
     # Get tag from release URL
-    local release_url="https://github.com/helm/helm/releases"
+    local latest_release_url="https://github.com/helm/helm/releases"
     if type "curl" > /dev/null; then
-
-      TAG=$(curl -Ls $release_url | grep 'href="/helm/helm/releases/tag/v2.[0-9]*.[0-9]*\"' | grep -v no-underline | head -n 1 | cut -d '"' -f 2 | awk '{n=split($NF,a,"/");print a[n]}' | awk 'a !~ $0{print}; {a=$0}')
+      TAG=$(curl -Ls $latest_release_url | grep 'href="/helm/helm/releases/tag/v3.[0-9]*.[0-9]*\"' | grep -v no-underline | head -n 1 | cut -d '"' -f 2 | awk '{n=split($NF,a,"/");print a[n]}' | awk 'a !~ $0{print}; {a=$0}')
     elif type "wget" > /dev/null; then
-      TAG=$(wget $release_url -O - 2>&1 | grep 'href="/helm/helm/releases/tag/v2.[0-9]*.[0-9]*\"' | grep -v no-underline | head -n 1 | cut -d '"' -f 2 | awk '{n=split($NF,a,"/");print a[n]}' | awk 'a !~ $0{print}; {a=$0}')
+      TAG=$(wget $latest_release_url -O - 2>&1 | grep 'href="/helm/helm/releases/tag/v3.[0-9]*.[0-9]*\"' | grep -v no-underline | head -n 1 | cut -d '"' -f 2 | awk '{n=split($NF,a,"/");print a[n]}' | awk 'a !~ $0{print}; {a=$0}')
     fi
   else
     TAG=$DESIRED_VERSION
@@ -94,8 +91,8 @@ checkDesiredVersion() {
 # checkHelmInstalledVersion checks which version of helm is installed and
 # if it needs to be changed.
 checkHelmInstalledVersion() {
-  if [[ -f "${HELM_INSTALL_DIR}/${PROJECT_NAME}" ]]; then
-    local version=$("${HELM_INSTALL_DIR}/${PROJECT_NAME}" version -c | grep '^Client' | cut -d'"' -f2)
+  if [[ -f "${HELM_INSTALL_DIR}/${BINARY_NAME}" ]]; then
+    local version=$("${HELM_INSTALL_DIR}/${BINARY_NAME}" version --template="{{ .Version }}")
     if [[ "$version" == "$TAG" ]]; then
       echo "Helm ${version} is already ${DESIRED_VERSION:-latest}"
       return 0
@@ -133,7 +130,7 @@ downloadFile() {
 # installFile verifies the SHA256 for the file, then unpacks and
 # installs it.
 installFile() {
-  HELM_TMP="$HELM_TMP_ROOT/$PROJECT_NAME"
+  HELM_TMP="$HELM_TMP_ROOT/$BINARY_NAME"
   local sum=$(openssl sha1 -sha256 ${HELM_TMP_FILE} | awk '{print $2}')
   local expected_sum=$(cat ${HELM_SUM_FILE})
   if [ "$sum" != "$expected_sum" ]; then
@@ -143,17 +140,10 @@ installFile() {
 
   mkdir -p "$HELM_TMP"
   tar xf "$HELM_TMP_FILE" -C "$HELM_TMP"
-  HELM_TMP_BIN="$HELM_TMP/$OS-$ARCH/$PROJECT_NAME"
-  TILLER_TMP_BIN="$HELM_TMP/$OS-$ARCH/$TILLER_NAME"
-  echo "Preparing to install $PROJECT_NAME and $TILLER_NAME into ${HELM_INSTALL_DIR}"
-  runAsRoot cp "$HELM_TMP_BIN" "$HELM_INSTALL_DIR"
-  echo "$PROJECT_NAME installed into $HELM_INSTALL_DIR/$PROJECT_NAME"
-  if [ -x "$TILLER_TMP_BIN" ]; then
-    runAsRoot cp "$TILLER_TMP_BIN" "$HELM_INSTALL_DIR"
-    echo "$TILLER_NAME installed into $HELM_INSTALL_DIR/$TILLER_NAME"
-  else
-    echo "info: $TILLER_NAME binary was not found in this release; skipping $TILLER_NAME installation"
-  fi
+  HELM_TMP_BIN="$HELM_TMP/$OS-$ARCH/helm"
+  echo "Preparing to install $BINARY_NAME into ${HELM_INSTALL_DIR}"
+  runAsRoot cp "$HELM_TMP_BIN" "$HELM_INSTALL_DIR/$BINARY_NAME"
+  echo "$BINARY_NAME installed into $HELM_INSTALL_DIR/$BINARY_NAME"
 }
 
 # fail_trap is executed if an error occurs.
@@ -161,10 +151,10 @@ fail_trap() {
   result=$?
   if [ "$result" != "0" ]; then
     if [[ -n "$INPUT_ARGUMENTS" ]]; then
-      echo "Failed to install $PROJECT_NAME with the arguments provided: $INPUT_ARGUMENTS"
+      echo "Failed to install $BINARY_NAME with the arguments provided: $INPUT_ARGUMENTS"
       help
     else
-      echo "Failed to install $PROJECT_NAME"
+      echo "Failed to install $BINARY_NAME"
     fi
     echo -e "\tFor support, go to https://github.com/helm/helm."
   fi
@@ -175,21 +165,20 @@ fail_trap() {
 # testVersion tests the installed client to make sure it is working.
 testVersion() {
   set +e
-  HELM="$(which $PROJECT_NAME)"
+  HELM="$(command -v $BINARY_NAME)"
   if [ "$?" = "1" ]; then
-    echo "$PROJECT_NAME not found. Is $HELM_INSTALL_DIR on your "'$PATH?'
+    echo "$BINARY_NAME not found. Is $HELM_INSTALL_DIR on your "'$PATH?'
     exit 1
   fi
   set -e
-  echo "Run '$PROJECT_NAME init' to configure $PROJECT_NAME."
 }
 
 # help provides possible cli installation arguments
 help () {
   echo "Accepted cli arguments are:"
   echo -e "\t[--help|-h ] ->> prints this help"
-  echo -e "\t[--version|-v <desired_version>]"
-  echo -e "\te.g. --version v2.4.0  or -v latest"
+  echo -e "\t[--version|-v <desired_version>] . When not defined it fetches the latest release from GitHub"
+  echo -e "\te.g. --version v3.0.0 or -v canary"
   echo -e "\t[--no-sudo]  ->> install without sudo"
 }
 
@@ -216,7 +205,7 @@ while [[ $# -gt 0 ]]; do
        if [[ $# -ne 0 ]]; then
            export DESIRED_VERSION="${1}"
        else
-           echo -e "Please provide the desired version. e.g. --version v2.4.0 or -v latest"
+           echo -e "Please provide the desired version. e.g. --version v3.0.0 or -v canary"
            exit 0
        fi
        ;;
