@@ -99,22 +99,38 @@
 			# git config credential.helper store --global
 
 
-5. EKS CLUSTER 생성 ( eksctl 사용 )
+5. EKS CLUSTER 생성 ( eksctl 사용. 0.20.0 부터는 managednodegreoup 생성시에 Error가 나니 Cluster / NodeGroup을 나눠서 만든다. )
 
 	[ EKS Optimized AMI 확인 - managedNodeGroups 사용하면 필요 없음 ]
 	# aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.16/amazon-linux-2/recommended/image_id --region ap-northeast-2 --query "Parameter.Value" --output text
 	ami-0b18567e6d3b05548   # 2020-06-09
 
 	# cd EKS/cluster
-	# date; eksctl create cluster -f 01.ap-northeast-2.eks-skcc05599-1devops-2worker.yaml ; date
+	
+	[ Cluster 생성 ]
+	# date; eksctl create cluster --config-file=00.ap-northeast-2.eks-skcc05599.create-cluster.yaml ; date
+	
+	[ NodeGreoup 생성 ]
+	# date; eksctl create nodegroup --config-file=03.ap-northeast-2.eks-skcc05599-1devops-2worker.managed.yaml ; date
 	
 	# aws eks describe-cluster --name skcc05599 | jq '.cluster |.name, .endpoint, .resourcesVpcConfig'
 	
 	
 6. Node별 Label 추가
-	# kubectl label nodes ip-10-5-189-242.ap-northeast-2.compute.internal node-role.kubernetes.io/management=true
-	# kubectl label nodes ip-10-5-173-4.ap-northeast-2.compute.internal   node-role.kubernetes.io/worker=true
-	# kubectl label nodes ip-10-5-99-154.ap-northeast-2.compute.internal  node-role.kubernetes.io/worker=true
+	# Node에 Label 추가 ( Cluster.yaml에 label 추가해서 생성하면 오류나니 수동으로 label 추가 )
+	# kubectl get node -L role,ec2-type
+	# DEVS_NODE=$(kc get nodes -L role | grep devops | grep none | awk '{print $1}')
+	# WRKS_NODE=$(kc get nodes -L role | grep worker | grep none | awk '{print $1}')
+	
+	# for NODE in $DEVS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/devops=true
+	  done
+	
+	# for NODE in $WRKS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/worker=true
+	  done
 	
 	
 7. EC2 TYPE별 POD 갯수
@@ -123,23 +139,31 @@
 		* Max Pods = Maximum supported  Network Interfaces for instance type ) * ( IPv4 Addresses per Interface ) - 1
 
 	=> https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html
-		* t3a.micro  = ENI 2 => 3 * 2 - 1 = 5
-		* t3a.small  = ENI 4 => 3 * 4 - 1 = 11
-		* t3a.medium = ENI 6 => 3 * 6 - 1 = 17
+		* t3a.micro  = IPv4 addresses per interface 2 => 3 * 2 - 1 = 5
+		* t3a.small  = IPv4 addresses per interface 4 => 3 * 4 - 1 = 11
+		* t3a.medium = IPv4 addresses per interface 6 => 3 * 6 - 1 = 17
+		
+		
+	VS
+	
+	=> https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html
 
 8. Node별 POD 갯수 확인
+   => Dual CIDR을 안쓰면 EC2에 Network Interface가 Main CIDR에만 할당됨
+   => Dual CIDE을   쓰면 EC2에 Network Interface중에 1개가 Sub CIDR에 할당되서 1개가 빠지는거와 마찮가지임. ( 확인해봐라 )
+
+	######################################################
+	[ Dual CIDR 적용시 ]
+	=> t3a.small에서 Running 가능한 POD는 11개 지만, 실제 Running 가능한건 5개 ( 왜??? )
+	=> t3a.medium 에서 Running 가능한 POD는 17개이고, 실제 Running 가능한것도 OO개 ( 다시 확인해봐라 )
+	=> 나머지 POD는 'ContainerCreating' 에서 Stuck 걸림
+	######################################################
 	# kc get node -L ec2-type
 	NAME                                              STATUS   ROLES    AGE    VERSION              EC2-TYPE
 	ip-10-5-115-27.ap-northeast-2.compute.internal    Ready    worker   110m   v1.16.8-eks-e16311   t3a.small
 	ip-10-5-120-232.ap-northeast-2.compute.internal   Ready    devops   110m   v1.16.8-eks-e16311   t3a.medium
-	ip-10-5-188-123.ap-northeast-2.compute.internal   Ready    worker   110m   v1.16.8-eks-e16311   t3a.small
-	
-	[ Dual CIDR 적용시 ] => t3a.small에서 Running 가능한 POD는 5개 뿐임, 1개는 'ContainerCreating' 에서 Stuck 걸림 ( Dual CIDR 사용시 Node의 ENI를 50%밖에 사용하지 못함 )
-	# kc get pod --all-namespaces -o wide | awk '{print $8}' | grep -v NODE | sort | uniq -c
-      6 ip-10-5-115-27.ap-northeast-2.compute.internal
-      3 ip-10-5-120-232.ap-northeast-2.compute.internal
-      6 ip-10-5-188-123.ap-northeast-2.compute.internal
-	  
+	ip-10-5-188-123.ap-northeast-2.compute.internal   Ready    worker   110m   v1.16.8-eks-e16311   t3a.small	
+
 	# kc get pod --all-namespaces -o wide | grep Running | awk '{print $8}' | sort | uniq -c
       5 ip-10-5-115-27.ap-northeast-2.compute.internal
       3 ip-10-5-120-232.ap-northeast-2.compute.internal
@@ -149,13 +173,73 @@
       1 ip-10-5-115-27.ap-northeast-2.compute.internal
       1 ip-10-5-188-123.ap-northeast-2.compute.internal
 	  
-	# kc describe pod/busybox-ecr1-75648f4945-49sdq -n infra | tail -1   # ( 로그 확인해보면 CNI에서 IP 할당 실패 남 )
+	# kc get pod --all-namespaces -o wide | awk '{print $8}' | grep -v NODE | sort | uniq -c
+      6 ip-10-5-115-27.ap-northeast-2.compute.internal
+      3 ip-10-5-120-232.ap-northeast-2.compute.internal
+      6 ip-10-5-188-123.ap-northeast-2.compute.internal
+	  
+	# kc describe pod/busybox-ecr1-75648f4945-49sdq -n infra | tail -1   # ( 로그 확인해보면 CNI에서 IP 할당 실패로 ContainerCreating 상태임 )
 	Warning  FailedCreatePodSandBox  4m47s (x271 over 9m38s)  kubelet, ip-10-5-115-27.ap-northeast-2.compute.internal  (combined from similar events): Failed create pod sandbox: rpc error: code = Unknown desc = failed to set up sandbox container "7acdc447cb5f77399ecf21089f2d46501fe9bdf0aa9288a71800c3a4a500a13b" network for pod "busybox-ecr1-75648f4945-49sdq": networkPlugin cni failed to set up pod "busybox-ecr1-75648f4945-49sdq_infra" network: add cmd: failed to assign an IP address to container
 
-	  
+	######################################################
 	[ Dual CIDR 미 적용시 ]
-	((( 이거 테스트 해라 )))
+	=> t3a.small  에서 Running 가능한 POD는 11개 지만, 실제 Running 가능한건 8개
+	=> t3a.medium 에서 Running 가능한 POD는 17개이고, 실제 Running 가능한것도 17개
+	=> 나머지 POD는 'Pending' 에서 Stuck 걸림
+	######################################################
+	# kc get node -L ec2-type
+	NAME                                               STATUS   ROLES    AGE     VERSION              EC2-TYPE
+	ip-10-50-120-135.ap-northeast-2.compute.internal   Ready    worker   7m9s    v1.16.8-eks-e16311   t3a.small
+	ip-10-50-142-29.ap-northeast-2.compute.internal    Ready    devops   6m56s   v1.16.8-eks-e16311   t3a.medium
+	ip-10-50-158-107.ap-northeast-2.compute.internal   Ready    worker   7m15s   v1.16.8-eks-e16311   t3a.small
+	
+	# kc get pod --all-namespaces -o wide | awk '{print $8}' | grep -v NODE | sort | uniq -c
+      8 ip-10-50-120-135.ap-northeast-2.compute.internal
+     17 ip-10-50-142-29.ap-northeast-2.compute.internal
+      8 ip-10-50-158-107.ap-northeast-2.compute.internal
 
+	# kc get pod --all-namespaces -o wide | grep Running | awk '{print $8}' | sort | uniq -c
+      8 ip-10-50-120-135.ap-northeast-2.compute.internal
+     17 ip-10-50-142-29.ap-northeast-2.compute.internal
+      8 ip-10-50-158-107.ap-northeast-2.compute.internal
+	  
+	# kc get pod -o wide --all-namespaces | grep "ip-10-50-142-29.ap-northeast-2.compute.internal" | grep Running | wc -l
+	17
+	  
+	# kc get pod --all-namespaces -o wide | grep -v Running | awk '{print $8}' | sort | uniq -c
+	0
+
+	
+	[ Pending 이었던 POD describe 를 보면 ]
+	# kc describe pod/busybox-ecr1-75648f4945-2p84j -n infra | tail -1   # ( 로그 확인해보면 POD수 제한으로 Pending 상태임 )
+	Warning  FailedScheduling  10s (x32 over 45m)  default-scheduler  0/3 nodes are available: 1 node(s) didn't match node selector, 2 Insufficient pods.
+
+
+	######################################################
+	[ Dual CIDR 미 적용시 => 적용하고, nodeGroup 다시 만들었을때 ]
+	=> t3a.small  에서 Running 가능한 POD는 11개 지만, 실제 Running 가능한건 5개 ( -3 )
+	=> t3a.medium 에서 Running 가능한 POD는 17개 지만, 실제 Running 가능한건 12개 ( -5 )
+	=> 나머지 POD는 'Pending' 에서 Stuck 걸림
+	######################################################
+	# kc get node -L ec2-type
+	NAME                                              STATUS   ROLES    AGE     VERSION              EC2-TYPE
+	ip-10-50-123-94.ap-northeast-2.compute.internal   Ready    devops   6m2s    v1.16.8-eks-e16311   t3a.medium
+	ip-10-50-132-2.ap-northeast-2.compute.internal    Ready    worker   5m48s   v1.16.8-eks-e16311   t3a.small
+	ip-10-50-97-145.ap-northeast-2.compute.internal   Ready    worker   6m16s   v1.16.8-eks-e16311   t3a.small
+	
+	# kc get pod --all-namespaces -o wide | awk '{print $8}' | grep -v NODE | sort | uniq -c
+     17 ip-10-50-123-94.ap-northeast-2.compute.internal
+      8 ip-10-50-132-2.ap-northeast-2.compute.internal
+      8 ip-10-50-97-145.ap-northeast-2.compute.internal
+
+	# kc get pod --all-namespaces -o wide | grep Running | awk '{print $8}' | sort | uniq -c
+     12 ip-10-50-123-94.ap-northeast-2.compute.internal
+      2 ip-10-50-132-2.ap-northeast-2.compute.internal
+      4 ip-10-50-97-145.ap-northeast-2.compute.internal
+
+	
+	# kc get pod --all-namespaces -o wide | grep -v Running | awk '{print $8}' | sort | uniq -c
+	
 
 	
 	
@@ -267,7 +351,7 @@
 ############################################################################################################################################################
 
 1. EKS Cluster 명 확인
-	# export EKS_CLUSTER_NAME=skcc05599
+	# export EKS_CLUSTER_NAME=meditch05
 
 2. EKS가 사용하는 VPC_ID 확인
 	# export VPC_ID=$(eksctl utils describe-stacks --region=ap-northeast-2 --cluster=${EKS_CLUSTER_NAME} | grep OutputValue | grep vpc | cut -d"\"" -f2)	
@@ -301,13 +385,13 @@
 	# aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC_ID | jq -r '.RouteTables[].RouteTableId'
 	
 	※ IAM 으로 여러명이 사용하면 어떤게 내껀지 구별하기 어려움. rtb ID가 안보이면 웹콘솔가서 따로 확인을 하자
-	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2A => rtb-01a1f940f6cc1bc26
-	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2B => rtb-062e3a57850489b51	
-	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2C => rtb-08cc2387a43cae6f1
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2A => rtb-0916ebb8934a4ab9e
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2B => rtb-03fcb781f4f5713d9
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2C => rtb-033102996bad6734d
 
-	# export RTASSOC_ID1=rtb-01a1f940f6cc1bc26
-	# export RTASSOC_ID2=rtb-062e3a57850489b51
-	# export RTASSOC_ID3=rtb-08cc2387a43cae6f1
+	# export RTASSOC_ID1=rtb-0916ebb8934a4ab9e
+	# export RTASSOC_ID2=rtb-03fcb781f4f5713d9
+	# export RTASSOC_ID3=rtb-033102996bad6734d
 
 	# aws ec2 associate-route-table --route-table-id $RTASSOC_ID1 --subnet-id $CUST_SNET1
 	# aws ec2 associate-route-table --route-table-id $RTASSOC_ID2 --subnet-id $CUST_SNET2
@@ -402,7 +486,7 @@
 	eksctl-skcc05599-cluster/ClusterSharedNodeSecurityGroup	sg-08040113e12d6d1bb	...   # 여기서 빼면 CNI 사용을 못해서 POD가 "ContainerCreating" 상태에서 멈춰버림
 	eksctl-skcc05599-cluster/ControlPlaneSecurityGroup		sg-0dd182c2553e9d341	...
 	
-15. Node에 Label 추가 ( Cluster.yaml에 label 추가하면 안된다는 소문이 있어서 )
+15. Node에 Label 추가 ( Cluster.yaml에 label 추가해서 생성하면 오류나니 수동으로 label 추가 )
 	# kubectl get node -L role,ec2-type
 	# DEVS_NODE=$(kc get nodes -L role | grep devops | grep none | awk '{print $1}')
 	# WRKS_NODE=$(kc get nodes -L role | grep worker | grep none | awk '{print $1}')
@@ -570,8 +654,13 @@
 	pod/nginx-ingress-controller-zg85b                   1/1     Running   0          35m   100.64.71.32    ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
 	pod/nginx-ingress-default-backend-6d7985b7ff-5kdvc   1/1     Running   0          16m   100.64.88.111   ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
 
+
+################################################
+[ Dual CIDR 사용시 ] => NLB 통해서 Ingress 호출하면 들어간 nginx-controller와 같은 EC2에 POD로는 들어가는데, 다른 EC2로는 못넘어감
+################################################
 	
-3. Ingress 호출 테스트
+3. Ingress 호출 테스트 ( NLB에 할당된 Public IP가 어떨땐 2개고, 어떨땐 3개여 ㅡ_ㅡ;;; )
+
 	# nslookup ab29712e0d4ba4bcc916fb6f4c935379-a3da055390627c00.elb.ap-northeast-2.amazonaws.com
 	Address:        10.16.0.2#53
 	Address: 52.78.117.206
@@ -599,6 +688,23 @@
 	# curl -H "Host: ffptest.com" http://52.78.113.11/apple
 	# curl -H "Host: ffptest.com" http://52.79.68.159/apple
 	# curl -H "Host: ffptest.com" http://13.125.88.199/apple
+
+
+################################################
+[ Dual CIDR 미 사용시 ]  => NLB 통해서 Ingress 호출하면 들어간 nginx-controller와 다른 EC2로도 잘 넘어가서 잘 됨
+################################################
+
+3. Ingress 호출 테스트 ( NLB에 할당된 Public IP가 어떨땐 2개고, 어떨땐 3개여 ㅡ_ㅡ;;; )
+	# nslookup a6ac6cd5746ab4510ab3d2a5a2ced4f2-601267f4a9605765.elb.ap-northeast-2.amazonaws.com | grep Address
+	Address:        10.16.0.2#53
+	Address: 15.165.128.183
+	Address: 15.164.56.232
+	
+	# curl -H "Host: ffptest.com" http://15.165.128.183/apple
+	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	
+	# curl -H "Host: ffptest.com" http://15.164.56.232/apple
+	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
 
 
 	

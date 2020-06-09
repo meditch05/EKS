@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: busybox-ecr1
+  name: busybox-devops
   namespace: infra
   labels:
-    app: busybox-ecr1
+    app: busybox-devops
 spec:
-  replicas: 2
+  replicas: 15
   selector:
     matchLabels:
       app: busybox
@@ -25,4 +25,4 @@ spec:
         ports:
         - containerPort: 80
       nodeSelector:
-        role: worker
+        role: devops
