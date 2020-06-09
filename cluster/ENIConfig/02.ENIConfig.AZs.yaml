@@ -4,19 +4,19 @@ kind: ENIConfig
 metadata:
   name: ap-northeast-2a
 spec:
-  subnet: subnet-06c19983ccff6afb5
+  subnet: subnet-0556070e7121b61bb
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata:
   name: ap-northeast-2b
 spec:
-  subnet: subnet-0334839ad529428ca
+  subnet: subnet-0e52cc28ab1c10163
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata:
   name: ap-northeast-2c
 spec:
-  subnet: subnet-078e97a945f0e2ddb
+  subnet: subnet-099bd5a7a2425d605
 ---

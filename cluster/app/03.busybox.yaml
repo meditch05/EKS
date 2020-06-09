@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: busybox-deployment-ecr1
+  name: busybox-ecr1
   namespace: infra
   labels:
-    app: busybox-deployment-ecr1
+    app: busybox-ecr1
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: busybox
@@ -15,14 +15,14 @@ spec:
       labels:
         app: busybox
     spec:
-      imagePullSecrets:
-      - name: ecr1
       containers:
       - name: nginx
-        image: 644960261046.dkr.ecr.ap-northeast-2.amazonaws.com/busybox:latest
+        image: 847322629192.dkr.ecr.ap-northeast-2.amazonaws.com/busybox:latest
         imagePullPolicy: Always # IfNotPresent
         command:
           - sleep
           - "3600"
         ports:
         - containerPort: 80
+      nodeSelector:
+        role: worker
