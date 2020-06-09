@@ -18,5 +18,5 @@ kind: ENIConfig
 metadata:
   name: ap-northeast-2c
 spec:
-  subnet: subnet-subnet-00b5c0de4775f9699
+  subnet: subnet-00b5c0de4775f9699
 ---
