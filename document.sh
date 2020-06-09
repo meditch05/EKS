@@ -10,9 +10,6 @@
 	- Auto-assign Public IP	: Enable
 	- Key Pair				: meditch05.pem
 	
-	#- AMI 			: CentOS 7 (x86_64) - with Updates HVM
-	#- InstanceSize	: t3a.micro
-	
 2. Bastion 서버 접속 SSH 구성
     - puttygen 설치
 	- pem -> ppk 로 변경 ( Key Pair 파일을 ppk 로 변경 )
@@ -69,7 +66,7 @@
 	# curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 	# sudo mv /tmp/eksctl /usr/local/bin
 	# eksctl version
-	0.19.0
+	0.21.0
 	
 	=====================================
 	[ Bastion 서버 구성 - kubectl 구성 ]
@@ -80,6 +77,7 @@
 	# chmod +x ./kubectl
 	# sudo mv  ./kubectl /usr/local/bin/kubectl
 	# kubectl version --client
+	1.18.3
 	
 	=====================================
 	[ Bastion 서버 구성 - docker 구성 ]
@@ -103,18 +101,561 @@
 
 5. EKS CLUSTER 생성 ( eksctl 사용 )
 
-	# cd EKS/cluster
-	# date; eksctl create cluster -f eks-meditch05.yaml; date
+	[ EKS Optimized AMI 확인 - managedNodeGroups 사용하면 필요 없음 ]
+	# aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.16/amazon-linux-2/recommended/image_id --region ap-northeast-2 --query "Parameter.Value" --output text
+	ami-0b18567e6d3b05548   # 2020-06-09
 
-			[ 오류 1 ]
-			# test for error - Error: timed out (after 25m0s) waiting for at least 1 nodes to join the cluster and become ready in "ffp-unmanaged-ng-proxy"
-		
-			- 테스트 1 ( # https://eksctl.io/usage/autoscaling/ )
-			추가1
-			# availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]	  
+	# cd EKS/cluster
+	# date; eksctl create cluster -f 01.ap-northeast-2.eks-skcc05599-1devops-2worker.yaml ; date
+	
+	# aws eks describe-cluster --name skcc05599 | jq '.cluster |.name, .endpoint, .resourcesVpcConfig'
+	
+	
+6. Node별 Label 추가
+	# kubectl label nodes ip-10-5-189-242.ap-northeast-2.compute.internal node-role.kubernetes.io/management=true
+	# kubectl label nodes ip-10-5-173-4.ap-northeast-2.compute.internal   node-role.kubernetes.io/worker=true
+	# kubectl label nodes ip-10-5-99-154.ap-northeast-2.compute.internal  node-role.kubernetes.io/worker=true
+	
+	
+7. EC2 TYPE별 POD 갯수
+	
+	=> https://medium.com/faun/aws-eks-and-pods-sizing-per-node-considerations-964b08dcfad3 )
+		* Max Pods = Maximum supported  Network Interfaces for instance type ) * ( IPv4 Addresses per Interface ) - 1
+
+	=> https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html
+		* t3a.micro  = ENI 2 => 3 * 2 - 1 = 5
+		* t3a.small  = ENI 4 => 3 * 4 - 1 = 11
+		* t3a.medium = ENI 6 => 3 * 6 - 1 = 17
+
+8. Node별 POD 갯수 확인
+	# kc get node -L ec2-type
+	NAME                                              STATUS   ROLES    AGE    VERSION              EC2-TYPE
+	ip-10-5-115-27.ap-northeast-2.compute.internal    Ready    worker   110m   v1.16.8-eks-e16311   t3a.small
+	ip-10-5-120-232.ap-northeast-2.compute.internal   Ready    devops   110m   v1.16.8-eks-e16311   t3a.medium
+	ip-10-5-188-123.ap-northeast-2.compute.internal   Ready    worker   110m   v1.16.8-eks-e16311   t3a.small
+	
+	[ Dual CIDR 적용시 ] => t3a.small에서 Running 가능한 POD는 5개 뿐임, 1개는 'ContainerCreating' 에서 Stuck 걸림 ( Dual CIDR 사용시 Node의 ENI를 50%밖에 사용하지 못함 )
+	# kc get pod --all-namespaces -o wide | awk '{print $8}' | grep -v NODE | sort | uniq -c
+      6 ip-10-5-115-27.ap-northeast-2.compute.internal
+      3 ip-10-5-120-232.ap-northeast-2.compute.internal
+      6 ip-10-5-188-123.ap-northeast-2.compute.internal
+	  
+	# kc get pod --all-namespaces -o wide | grep Running | awk '{print $8}' | sort | uniq -c
+      5 ip-10-5-115-27.ap-northeast-2.compute.internal
+      3 ip-10-5-120-232.ap-northeast-2.compute.internal
+      5 ip-10-5-188-123.ap-northeast-2.compute.internal
+
+	# kc get pod --all-namespaces -o wide | grep ContainerCreating | awk '{print $8}' | sort | uniq -c
+      1 ip-10-5-115-27.ap-northeast-2.compute.internal
+      1 ip-10-5-188-123.ap-northeast-2.compute.internal
+	  
+	# kc describe pod/busybox-ecr1-75648f4945-49sdq -n infra | tail -1   # ( 로그 확인해보면 CNI에서 IP 할당 실패 남 )
+	Warning  FailedCreatePodSandBox  4m47s (x271 over 9m38s)  kubelet, ip-10-5-115-27.ap-northeast-2.compute.internal  (combined from similar events): Failed create pod sandbox: rpc error: code = Unknown desc = failed to set up sandbox container "7acdc447cb5f77399ecf21089f2d46501fe9bdf0aa9288a71800c3a4a500a13b" network for pod "busybox-ecr1-75648f4945-49sdq": networkPlugin cni failed to set up pod "busybox-ecr1-75648f4945-49sdq_infra" network: add cmd: failed to assign an IP address to container
+
+	  
+	[ Dual CIDR 미 적용시 ]
+	((( 이거 테스트 해라 )))
+
 
 	
-	# aws eks describe-cluster --name eks-meditch05 | jq '.cluster |.name, .endpoint, .resourcesVpcConfig'
+	
+	
+	
+	
+############################################################################################################
+# HELM 3 설치
+############################################################################################################
+
+1. HELM3 설치
+	# curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
+	# sudo chmod 700 get_helm.sh
+	# sudo ./get_helm.sh
+	# helm version
+	
+	# helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+	# helm search repo stable
+	# helm repo update
+
+############################################################################################################
+# nginx-ingress 설치
+############################################################################################################
+1. nginx-ingress 설치
+	# helm search repo stable/nginx-ingress
+	# mkdir charts
+	# cd charts
+	# helm fetch stable/nginx-ingress
+	# tar -zxvf nginx-ingress*.tgz
+	# cp nginx-ingress/values.yaml  nginx-ingress/values.yaml.edit
+	# diff values.yaml values.yaml.edit
+	134c134
+	<   kind: Deployment
+	---
+	>   kind: DaemonSet
+	164c164
+	<   affinity: {}
+	---
+	>   affinity:
+	196c196,197
+	<   nodeSelector: {}
+	---
+	>   nodeSelector:
+	>     role: worker
+	247c248
+	<     annotations: {}
+	---
+>     annotations: {service.beta.kubernetes.io/aws-load-balancer-type: nlb}
+
+	
+	# kubectl create ns infra	
+	# cd nginx-ingress
+	# helm install nginx-ingress --namespace infra -f values.yaml.edit stable/nginx-ingress
+	
+	# helm list -n infra
+	
+			# helm uninstall nginx-ingress -n infra
+
+2. 생성 확인
+	# kc get svc,pod -n infra
+	NAME                                    TYPE           CLUSTER-IP      EXTERNAL-IP                                                                          PORT(S)                      AGE
+	service/nginx-ingress-controller        LoadBalancer   172.20.203.54   ab29712e0d4ba4bcc916fb6f4c935379-a3da055390627c00.elb.ap-northeast-2.amazonaws.com   80:30692/TCP,443:30567/TCP   21m
+	service/nginx-ingress-default-backend   ClusterIP      172.20.89.80    <none>                                                                               80/TCP                       21m
+	NAME                                                   READY   STATUS    RESTARTS   AGE
+	pod/nginx-ingress-controller-5569c                     1/1     Running   0          10m
+	pod/nginx-ingress-controller-nv2l2                     1/1     Running   0          21m
+	pod/nginx-ingress-default-backend-5b967cf596-wzhc9     1/1     Running   0          5m5s
+
+
+3. Worker Node에만 POD들이 생성되도록 Chart Update
+	# diff values.yaml values.yaml.edit
+	134c134
+	<   kind: Deployment
+	---
+	>   kind: DaemonSet
+	164c164
+	<   affinity: {}
+	---
+	>   affinity:
+	196c196,197
+	<   nodeSelector: {}
+	---
+	>   nodeSelector:
+	>     role: worker
+	247c248
+	<     annotations: {}
+	---
+	>     annotations: {service.beta.kubernetes.io/aws-load-balancer-type: nlb}
+	507c508,509
+	<   nodeSelector: {}
+	---
+	>   nodeSelector:
+	>     role: worker
+
+	# helm upgrade nginx-ingress --namespace infra -f values.yaml.edit stable/nginx-ingress
+	
+	# kc get pod -n infra -o wide
+	NAME                                             READY   STATUS    RESTARTS   AGE     IP              NODE                                              NOMINATED NODE   READINESS GATES
+	busybox-deployment-ecr1-75bdbb5ffd-5bh5b         1/1     Running   0          4m40s   10.5.0.75     ip-10-5-188-123.ap-northeast-2.compute.internal   <none>           <none>
+	busybox-deployment-ecr1-75bdbb5ffd-6hl2k         1/1     Running   0          4m42s   10.5.66.222   ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+	nginx-ingress-controller-pvh97                   1/1     Running   0          20m     10.5.6.184    ip-10-5-188-123.ap-northeast-2.compute.internal   <none>           <none>
+	nginx-ingress-controller-zg85b                   1/1     Running   0          20m     10.5.71.32    ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+	nginx-ingress-default-backend-6d7985b7ff-5kdvc   1/1     Running   0          60s     10.5.88.111   ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+
+	
+############################################################################################################################################################
+# [ Dual CIDR 사용 EKS 생성 ]
+# https://aws.amazon.com/ko/premiumsupport/knowledge-center/eks-multiple-cidr-ranges/
+############################################################################################################################################################
+
+1. EKS Cluster 명 확인
+	# export EKS_CLUSTER_NAME=skcc05599
+
+2. EKS가 사용하는 VPC_ID 확인
+	# export VPC_ID=$(eksctl utils describe-stacks --region=ap-northeast-2 --cluster=${EKS_CLUSTER_NAME} | grep OutputValue | grep vpc | cut -d"\"" -f2)	
+	
+3. VPC에 Sub-CIDR 추가 ( 100.64.0.0/16 => VPC 네트워크를 확장 )
+	# aws ec2 associate-vpc-cidr-block --vpc-id $VPC_ID --cidr-block 100.64.0.0/16
+	
+4. AZ별 Sub-CIDR 용 Subnet 생성
+	# export AZ1=ap-northeast-2a
+	# export AZ2=ap-northeast-2b
+	# export AZ3=ap-northeast-2c
+	
+	# export CUST_SNET1=$(aws ec2 create-subnet --cidr-block 100.64.0.0/19  --vpc-id $VPC_ID --availability-zone $AZ1 | jq -r .Subnet.SubnetId)
+	# export CUST_SNET2=$(aws ec2 create-subnet --cidr-block 100.64.32.0/19 --vpc-id $VPC_ID --availability-zone $AZ2 | jq -r .Subnet.SubnetId)
+	# export CUST_SNET3=$(aws ec2 create-subnet --cidr-block 100.64.64.0/19 --vpc-id $VPC_ID --availability-zone $AZ3 | jq -r .Subnet.SubnetId)
+	
+	# echo CUST_SNET1
+	# echo CUST_SNET2
+	# echo CUST_SNET3
+
+5. 새로 생성한 서브넷에 태그 지정 ( EKS가 서브넷을 검색할 수 있도록 태그를 지정 )
+	# aws ec2 create-tags --resources $CUST_SNET1 --tags Key=Name,Value=SubnetA
+	# aws ec2 create-tags --resources $CUST_SNET2 --tags Key=Name,Value=SubnetB
+	# aws ec2 create-tags --resources $CUST_SNET3 --tags Key=Name,Value=SubnetC
+
+	# aws ec2 create-tags --resources $CUST_SNET1 --tags Key=kubernetes.io/cluster/${EKS_CLUSTER_NAME},Value=shared
+	# aws ec2 create-tags --resources $CUST_SNET2 --tags Key=kubernetes.io/cluster/${EKS_CLUSTER_NAME},Value=shared
+	# aws ec2 create-tags --resources $CUST_SNET3 --tags Key=kubernetes.io/cluster/${EKS_CLUSTER_NAME},Value=shared
+	
+6. Sub-CIDR 용 Subnet 을 VPC의 AZ별 라우팅 테이블에 연결
+	# aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC_ID | jq -r '.RouteTables[].RouteTableId'
+	
+	※ IAM 으로 여러명이 사용하면 어떤게 내껀지 구별하기 어려움. rtb ID가 안보이면 웹콘솔가서 따로 확인을 하자
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2A => rtb-01a1f940f6cc1bc26
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2B => rtb-062e3a57850489b51	
+	eksctl-skcc05599-cluster/PrivateRouteTableAPNORTHEAST2C => rtb-08cc2387a43cae6f1
+
+	# export RTASSOC_ID1=rtb-01a1f940f6cc1bc26
+	# export RTASSOC_ID2=rtb-062e3a57850489b51
+	# export RTASSOC_ID3=rtb-08cc2387a43cae6f1
+
+	# aws ec2 associate-route-table --route-table-id $RTASSOC_ID1 --subnet-id $CUST_SNET1
+	# aws ec2 associate-route-table --route-table-id $RTASSOC_ID2 --subnet-id $CUST_SNET2
+	# aws ec2 associate-route-table --route-table-id $RTASSOC_ID3 --subnet-id $CUST_SNET3
+	
+7. Sub-CIDR 을 사용하도록 EKS에 CNI 플러그인 구성 ( 신규생성한 EKS는 1.6.2 이므로 안해도됨 )
+	[ CNI 플러그인 확인 / 필요시 Upgrade ]
+	# kubectl describe daemonset aws-node --namespace kube-system | grep Image | cut -d "/" -f 2
+	# kubectl apply -f https://raw.githubusercontent.com/aws/amazon-vpc-cni-k8s/master/config/v1.5/aws-k8s-cni.yaml
+
+8. CNI 플러그인에 대한 사용자 지정 네트워크 구성 활성화
+	# kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+
+9. Worker 노드를 식별하기 위한 ENIConfig 레이블을 추가하려면 다음 명령을 실행  ( 이해가 안되요... ;ㅅ; )
+	# kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=failure-domain.beta.kubernetes.io/zone
+
+
+10. ENIConfig CRD 구성 
+
+	# vi ENIConfig.CRD.yaml
+	apiVersion: apiextensions.k8s.io/v1beta1
+	kind: CustomResourceDefinition
+	metadata:
+	name: eniconfigs.crd.k8s.amazonaws.com
+	spec:
+	scope: Cluster
+	group: crd.k8s.amazonaws.com
+	version: v1alpha1
+	names:
+		plural: eniconfigs
+		singular: eniconfig
+		kind: ENIConfig
+	
+	# kubectl apply -f ENIConfig.CRD.yaml
+
+
+11. 모든 서브넷 및 AZ에 대해 ENIConfig CRD 생성
+
+	# vi ENIConfig.AZs.yaml
+	---
+	apiVersion: crd.k8s.amazonaws.com/v1alpha1
+	kind: ENIConfig
+	metadata:
+	name: $AZ1
+	spec:
+	subnet: $CUST_SNET1 
+	---
+	apiVersion: crd.k8s.amazonaws.com/v1alpha1
+	kind: ENIConfig
+	metadata:
+	name: $AZ2
+	spec:
+	subnet: $CUST_SNET2
+	---
+	apiVersion: crd.k8s.amazonaws.com/v1alpha1
+	kind: ENIConfig
+	metadata:
+	name: $AZ3
+	spec:
+	subnet: $CUST_SNET3
+	---	
+	
+	# kubectl apply -f ENIConfig.AZs.yaml
+	
+12. Worker NodeGroup 재생성 ( 새 NodeGroup 에서만 Dual-CIDR 가 적용된다 )
+
+	  
+13. nginx-ingress 호출 테스트 ( 안될껄 )
+	# curl http://ab29712e0d4ba4bcc916fb6f4c935379-a3da055390627c00.elb.ap-northeast-2.amazonaws.com/asdlkjfskajdf
+
+14. EKS의 보안그룹 ( ControlPlaneSecurityGroup ) 수정  => Sub-CIDR 에 생성되는 POD들과 EKS ControlPlane 대역(172.x.x.x)과 통신이 되지 않는 현상 조치
+
+	[ Un-managed NodeGroup 일 경우 ]
+	# 웹콘솔 => VPC => 보안 => Security Group => "클러스터명이 들어간 모든 Security Group" => 인바운드 규칙에 100.64.0.0/16 대역을 추가
+	- 유형		: 모든 Traffic
+	- 프로토콜	: ALL
+	- 포트범위	: ALL
+	- 소스		: 사용자지정 ( 100.64.0.0/16 )
+	- 설명		: POD network TO ControlPlane network
+	
+	※ 2개 unmanaged node group 을 생성하면 아래 처럼 총 5개의 Security Group 이 보임 ( 5개 모두에 Inbound rule 추가 )
+	# eksctl-skcc05599-nodegroup-devops-new/SG					sg-0443e5afda7c0c622	...
+	# eks-cluster-sg-skcc05599-647076920						sg-0592750418c54c4a3	...
+	# eksctl-skcc05599-nodegroup-worker-new/SG					sg-07982106e46d7d52b	...
+	# eksctl-skcc05599-cluster/ClusterSharedNodeSecurityGroup	sg-08040113e12d6d1bb	...
+	# eksctl-skcc05599-cluster/ControlPlaneSecurityGroup		sg-0dd182c2553e9d341	...
+	
+	[ managed NodeGroup 일 경우 ]
+	
+	※ 2개 managed node group 을 생성하면 아래 처럼 총 3개의 Security Group 이 보임 ( 3개 모두에 Inbound rule 추가 )
+	eks-cluster-sg-skcc05599-647076920						sg-0592750418c54c4a3	...
+	eksctl-skcc05599-cluster/ClusterSharedNodeSecurityGroup	sg-08040113e12d6d1bb	...   # 여기서 빼면 CNI 사용을 못해서 POD가 "ContainerCreating" 상태에서 멈춰버림
+	eksctl-skcc05599-cluster/ControlPlaneSecurityGroup		sg-0dd182c2553e9d341	...
+	
+15. Node에 Label 추가 ( Cluster.yaml에 label 추가하면 안된다는 소문이 있어서 )
+	# kubectl get node -L role,ec2-type
+	# DEVS_NODE=$(kc get nodes -L role | grep devops | grep none | awk '{print $1}')
+	# WRKS_NODE=$(kc get nodes -L role | grep worker | grep none | awk '{print $1}')
+	
+	# for NODE in $DEVS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/devops=true
+	  done
+	
+	# for NODE in $WRKS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/worker=true
+	  done
+	
+	
+
+############################################################################################################
+# EKS nodeGroup 변경 ( unmanaged nodegroup 이고, AMI만 kubelet 1.16.8 용으로 변경 )
+# => https://eksctl.io/usage/faq/
+# => nodegroup은 immutable 이고 scale up/down 만 가능함. 새로운 nodegreoup을 만들고, 예전껄 지워야함
+############################################################################################################
+
+1. 기존 nodegroup 확인 ( AMI가 kubenetes 1.15 용이므로 1.16 용으로 변경하자 )
+	# eksctl get  nodegroup --cluster skcc05599
+	CLUSTER         NODEGROUP       CREATED                 MIN SIZE        MAX SIZE        DESIRED CAPACITY        INSTANCE TYPE   IMAGE ID
+	skcc05599       devops          2020-06-09T00:59:23Z    1               2               1                       t3a.medium      ami-08a18de5609e8f781
+	skcc05599       worker          2020-06-09T00:59:23Z    2               3               2                       t3a.small       ami-08a18de5609e8f781
+
+
+2. 새로운 nodeGroup 설정파일 확인
+	# diff 01.ap-northeast-2.eks-skcc05599-1devops-2worker.yaml  02.ap-northeast-2.eks-skcc05599-1devops-2worker.ami.chg.yaml
+	15c15
+	<   - name: devops
+	---
+	>   - name: devops-new
+	24c24
+	<     ami: ami-08a18de5609e8f781 # only for nodeGroups( Unmanaged nodegroup )
+	---
+	>     ami: ami-0b18567e6d3b05548 # only for nodeGroups( Unmanaged nodegroup )
+	39c39
+	<   - name: worker
+	---
+	>   - name: worker-new
+	48c48
+	<     ami: ami-08a18de5609e8f781 # only for nodeGroups( Unmanaged nodegroup )
+	---
+	>     ami: ami-0b18567e6d3b05548 # only for nodeGroups( Unmanaged nodegroup )
+
+3. 새로운 nodegroup 용으로 clusterconfig 파일 변경 / nodegroup 생성
+	# eksctl create nodegroup --config-file=02.ap-northeast-2.eks-skcc05599-1devops-2worker.unmanaged.ami.chg.yaml
+ 
+	[ 새로운 nodegroup, POD 생성 확인 ] => 새로운 Node에 생성된 POD는 Dual CIDR을 사용하게됨
+	# eksctl get nodegroup --cluster skcc05599
+	CLUSTER         NODEGROUP       CREATED                 MIN SIZE        MAX SIZE        DESIRED CAPACITY        INSTANCE TYPE   IMAGE ID
+	skcc05599       devops          2020-06-09T00:59:23Z    1               2               1                       t3a.medium      ami-08a18de5609e8f781
+	skcc05599       devops-new      2020-06-09T02:02:29Z    1               2               1                       t3a.medium      ami-0b18567e6d3b05548
+	skcc05599       worker          2020-06-09T00:59:23Z    2               3               2                       t3a.small       ami-08a18de5609e8f781
+	skcc05599       worker-new      2020-06-09T02:02:29Z    2               3               2                       t3a.small       ami-0b18567e6d3b05548
+	
+	#  kc get node; kc get pod -n infra -o wide
+	NAME                                              STATUS   ROLES        AGE     VERSION
+	ip-10-5-126-161.ap-northeast-2.compute.internal   Ready    worker       2m4s    v1.16.8-eks-e16311
+	ip-10-5-173-4.ap-northeast-2.compute.internal     Ready    worker       65m     v1.15.10-eks-bac369
+	ip-10-5-182-180.ap-northeast-2.compute.internal   Ready    management   2m38s   v1.16.8-eks-e16311
+	ip-10-5-189-242.ap-northeast-2.compute.internal   Ready    management   66m     v1.15.10-eks-bac369
+	ip-10-5-191-218.ap-northeast-2.compute.internal   Ready    worker       2m1s    v1.16.8-eks-e16311
+	ip-10-5-99-154.ap-northeast-2.compute.internal    Ready    worker       65m     v1.15.10-eks-bac369
+	NAME                                             READY   STATUS    RESTARTS   AGE    IP              NODE                                              NOMINATED NODE   READINESS GATES
+	nginx-ingress-controller-5569c                   1/1     Running   0          22m    10.5.110.204    ip-10-5-99-154.ap-northeast-2.compute.internal    <none>           <none>
+	nginx-ingress-controller-782dq                   1/1     Running   0          65s    100.64.88.122   ip-10-5-126-161.ap-northeast-2.compute.internal   <none>           <none>
+	nginx-ingress-controller-9jqn7                   1/1     Running   0          102s   100.64.0.255    ip-10-5-191-218.ap-northeast-2.compute.internal   <none>           <none>
+	nginx-ingress-controller-nv2l2                   1/1     Running   0          33m    10.5.180.240    ip-10-5-173-4.ap-northeast-2.compute.internal     <none>           <none>
+	nginx-ingress-default-backend-5b967cf596-wzhc9   1/1     Running   0          16m    10.5.167.155    ip-10-5-189-242.ap-northeast-2.compute.internal   <none>           <none>
+	
+	※ t3a.medium 타입을 사용하는 worker-t3a-medium nodegroup 으로 nginx-ingress POD들이 정상적으로 deploy 되었음
+	
+4. Node에 Label 추가 ( Cluster.yaml에 label 에 node-role.kubernetes.io/type: "true" 하면 오류남 )
+	# kubectl get node -L role,ec2-type
+	# DEVS_NODE=$(kc get nodes -L role | grep devops | grep none | awk '{print $1}')
+	# WRKS_NODE=$(kc get nodes -L role | grep worker | grep none | awk '{print $1}')
+	
+	# for NODE in $DEVS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/devops=true
+	  done
+	
+	# for NODE in $WRKS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/worker=true
+	  done
+
+5. 기존 nodegroup 삭제
+	# eksctl delete nodegroup --cluster skcc05599 --name=workers
+	# eksctl delete nodegroup --cluster skcc05599 --name=devops
+		=> eks에서 cordon 시키고, drain 시킨다는 메시지가 뜨고
+		=> Node가 Ready,SchedulingDisabled => NotReady,SchedulingDisabled => 삭제됨
+	
+	
+############################################################################################################
+# EKS nodeGroup 변경 ( Managed nodegroup 으로 변경 )
+# => https://eksctl.io/usage/faq/
+# => nodegroup은 immutable 이고 scale up/down 만 가능함. 새로운 nodegreoup을 만들고, 예전껄 지워야함
+############################################################################################################
+
+1. NodeGroup 생성
+	# eksctl create nodegroup --config-file=03.ap-northeast-2.eks-skcc05599-1devops-2worker.managed.yaml
+
+	# eksctl get nodegroup --cluster skcc05599
+	CLUSTER         NODEGROUP               CREATED                 MIN SIZE        MAX SIZE        DESIRED CAPACITY        INSTANCE TYPE   IMAGE ID
+	skcc05599       devops-new-managed      2020-06-09T04:14:41Z    1               2               1                       t3a.medium
+	skcc05599       worker-new-managed      2020-06-09T04:14:41Z    2               3               2                       t3a.small
+	
+2. Node에 Label 추가 ( Cluster.yaml에 label 에 node-role.kubernetes.io/type: "true" 하면 오류남 )
+	# kubectl get node -L role,ec2-type
+	# DEVS_NODE=$(kc get nodes -L role | grep devops | grep none | awk '{print $1}')
+	# WRKS_NODE=$(kc get nodes -L role | grep worker | grep none | awk '{print $1}')
+	
+	# for NODE in $DEVS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/devops=true
+	  done
+	
+	# for NODE in $WRKS_NODE
+	  do
+		kubectl label nodes ${NODE} node-role.kubernetes.io/worker=true
+	  done
+	  
+3. 기존 nodegroup 삭제
+	# eksctl delete nodegroup --cluster skcc05599 --name=workers-new
+	# eksctl delete nodegroup --cluster skcc05599 --name=devops-new
+		=> eks에서 cordon 시키고, drain 시킨다는 메시지가 뜨고
+		=> Node가 Ready,SchedulingDisabled => NotReady,SchedulingDisabled => 삭제됨
+	
+############################################################################################################
+# 샘플 Appl 구성
+############################################################################################################
+
+1. 샘플 Appl 구성
+	# cd EKS/cluster/app
+	# kc apply -f 01.test.app.yaml
+	
+2. 구성 확인
+	# kc get ing,svc,pod -n test -o wide
+	NAME                              HOSTS         ADDRESS                    PORTS   AGE
+	ingress.extensions/apple-banana   ffptest.com   10.5.115.27,10.5.188.123   80      147m
+	
+	NAME                     TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+	service/apple-service    ClusterIP   172.20.154.71    <none>        5678/TCP   148m
+	service/banana-service   ClusterIP   172.20.217.255   <none>        5678/TCP   148m
+	
+	NAME             READY   STATUS    RESTARTS   AGE
+	pod/apple-app    1/1     Running   0          22m
+	pod/banana-app   1/1     Running   0          22m
+	
+	
+	# kc get ing,svc,pod -n infra -o wide
+	NAME                                    TYPE           CLUSTER-IP      EXTERNAL-IP                                                                          PORT(S)                      AGE     SELECTOR
+	service/nginx-ingress-controller        LoadBalancer   172.20.203.54   ab29712e0d4ba4bcc916fb6f4c935379-a3da055390627c00.elb.ap-northeast-2.amazonaws.com   80:30692/TCP,443:30567/TCP   3h16m   app.kubernetes.io/component=controller,app=nginx-ingress,release=nginx-ingress
+	service/nginx-ingress-default-backend   ClusterIP      172.20.89.80    <none>                                                                               80/TCP                       3h16m   app.kubernetes.io/component=default-backend,app=nginx-ingress,release=nginx-ingress
+	
+	NAME                                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                              NOMINATED NODE   READINESS GATES
+	pod/busybox-deployment-ecr1-75bdbb5ffd-5bh5b         1/1     Running   0          20m   100.64.0.75     ip-10-5-188-123.ap-northeast-2.compute.internal   <none>           <none>
+	pod/busybox-deployment-ecr1-75bdbb5ffd-6hl2k         1/1     Running   0          20m   100.64.66.222   ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+	pod/nginx-ingress-controller-pvh97                   1/1     Running   0          36m   100.64.6.184    ip-10-5-188-123.ap-northeast-2.compute.internal   <none>           <none>
+	pod/nginx-ingress-controller-zg85b                   1/1     Running   0          35m   100.64.71.32    ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+	pod/nginx-ingress-default-backend-6d7985b7ff-5kdvc   1/1     Running   0          16m   100.64.88.111   ip-10-5-115-27.ap-northeast-2.compute.internal    <none>           <none>
+
+	
+3. Ingress 호출 테스트
+	# nslookup ab29712e0d4ba4bcc916fb6f4c935379-a3da055390627c00.elb.ap-northeast-2.amazonaws.com
+	Address:        10.16.0.2#53
+	Address: 52.78.117.206
+	Address: 52.79.203.186
+	
+	# curl -H "Host: ffptest.com" http://52.79.203.186/apple
+	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	
+	# curl -H "Host: ffptest.com" http://52.78.117.206/apple
+	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	
+	=> NLB의 1개 IP는 특정 Worker에 생성된 nginx-ingress POD로 들어갈때만 정상적이고, 다른 POD들 들어갈때는 EndPoints를 못찾아간다.
+	=> Node를 못넘어가는거 같은데...
+	
+	
+4. nginx-ingress 를 지우고 다시 만들어놔야
+
+
+5. Ingress 호출 테스트
+	# nslookup a0f2bb0e1275c4c5aab93c7ec8e9f87c-218b841f9b10b36c.elb.ap-northeast-2.amazonaws.com | grep Address
+	Address: 52.78.113.11
+	Address: 52.79.68.159
+	Address: 13.125.88.199
+	
+	# curl -H "Host: ffptest.com" http://52.78.113.11/apple
+	# curl -H "Host: ffptest.com" http://52.79.68.159/apple
+	# curl -H "Host: ffptest.com" http://13.125.88.199/apple
+
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+ 
 
 
 ############################################################################################################################################################
@@ -758,6 +1299,8 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	※ https://docs.aws.amazon.com/ko_kr/Route53/latest/DeveloperGuide/migrate-dns-domain-in-use.html
 	※ https://docs.aws.amazon.com/ko_kr/Route53/latest/DeveloperGuide/troubleshooting-domain-unavailable.html
 	※ https://docs.aws.amazon.com/ko_kr/Route53/latest/DeveloperGuide/domain-view-status.html
+	
+	※ https://www.icann.org/resources/pages/epp-status-codes-2014-06-16-en
 	※ https://teddylee777.github.io/aws/%EC%95%84%EB%A7%88%EC%A1%B4AWS-%EC%9D%B8%EC%8A%A4%ED%84%B4%EC%8A%A4-%EB%8F%84%EB%A9%94%EC%9D%B8-%EC%97%B0%EA%B2%B0%ED%95%98%EA%B8%B0
 	
 	※ https://galid1.tistory.com/358
@@ -766,12 +1309,17 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	1. 일단 Route53에서 구매한 Domain의 등록 상태를 확인
 	   # AWS -> Route53 -> Registered domains -> "Domain name status code" 확인 ( 도메인 생성한 직후는 "addPeriod" 임 )
 	     => https://www.icann.org/resources/pages/epp-status-codes-2014-06-16-en 에서 확인해보면
-	        최초 Domain을 등록시에 소요되는 시간 ( 이때 삭제하면 돈 돌려준데 )
+	        최초 Domain을 등록시에 몇일 걸릴수 있다고함 ( 이때 삭제하면 돈 돌려준데 )
+			
+			=> "This is an informative status set for the first several days of your domain's registration. There is no issue with your domain name."
+			
 		    => "This grace period is provided after the initial registration of a domain name.
 		        If the registrar deletes the domain name during this period,
 				the registry may provide credit to the registrar for the cost of the registration."
 				
-	   ※ DNS 갱신내용이 전파되는데는 최대 48시간까지 걸릴수도 있다고 한다.
+	   ※ DNS 갱신내용이 전파되는데는 최대 2~3일까지 걸릴수도 있다고 한다. ( 이때까지의 EPP 코드가 "addReriod" 임. ICANN에서 정의한 EPP CODE  )
+	      => EPP Code : Extensible Provisioning Protocol
+		  => https://www.icann.org/resources/pages/epp-status-codes-2014-06-16-en ( Serveral Days
 	      => https://notice.tistory.com/2358
 	   
 	
@@ -788,3 +1336,674 @@ eni-0f36f09dff8937e54	subnet-0db9ea516d8855be7	vpc-0f9d35d3c57436f17	ap-northeas
 	
 	* PC에 DNS 서버 변경
 	  - PC에 네트워크 설정 -> DNS 서버 -> 보조 DNS IP를 8.8.8.8 로 변경 ( Google DNS로 )
+
+	  
+	  
+	
+==========================
+해야할거
+==========================
+1. Route53 에서 Domain 따서 NLB로 붙여서 해보기
+	# curl http://ffptest.com/banana
+	# curl http://ffptest.com/apple
+	
+2. AWS에서 SSL 인증서 구매해서 적용하기 ( ACM )
+	# https://musma.github.io/2019/09/16/what-to-do-after-you-buy-your-new-domain-on-aws.html
+	# 반드시 ( 미국 동부(us-east-1)  ) 에서 구매해야함
+
+1. EFS 구성
+2. EFS Provisioner 구성
+3. EFS 써서 PVC 만들기
+4. PVC 사용하는 Sample App 개발/배포
+5. 잘되는지 보기
+
+
+#######################################################################################################################
+# 참고 자료
+#######################################################################################################################
+	
+						[ helm 버전 - helm version 3 ]
+						# helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+						# helm install ingress-nginx
+	
+						***** [ git 버전 ]
+						==> https://aws.amazon.com/premiumsupport/knowledge-center/eks-access-kubernetes-services/
+							( Last updated: 2020-01-29 )
+						==> https://kubernetes.github.io/ingress-nginx/deploy/#network-load-balancer-nlb
+						
+						[ nginx-ingress-controller 구성 ]
+						# cd ~/EKS/cluster
+						# git clone https://github.com/nginxinc/kubernetes-ingress.git
+						# cd nginx-ingress-controller/kubernetes-ingress/deployments
+						# kubectl apply -f common/ns-and-sa.yaml
+						# kubectl apply -f common/default-server-secret.yaml
+						# kubectl apply -f common/nginx-config.yaml
+						# kubectl apply -f rbac/rbac.yaml
+						# kubectl apply -f daemon-set/nginx-ingress.yaml
+						# kubectl get pods --namespace=nginx-ingress
+	
+						[ nginx-ingress-controller 구성 ]
+						# kubectl apply -f service/loadbalancer-aws-elb.yaml
+	
+	
+		
+						***** [ kubernetes/ingress-nginx 버전 ]
+						==> https://kubernetes.github.io/ingress-nginx/deploy/#aws
+							- SSL 미사용 버전
+							- SSL 사용 버전
+						
+						# cd ~/EKS/cluster/nginx-ingress-controller
+						# wget -O nginx-ic.yaml https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/aws/deploy.yaml 
+						# wget -O nginx-ic-tls.yaml https://raw.githubusercontent.com/kubernetes/ingress-nginx/204739fb6650c48fd41dc9505f8fd9ef6bc768e1/deploy/static/provider/aws/deploy-tls-termination.yaml
+							=> ACM 이랑 연동해서 쓰는거
+						# kubectl apply -f nginx-ic.yaml
+			
+			
+						============================================
+						[ NLB 로 Ingress 구성 / 테스트 ] ==> helm 버전에 맞게 수정
+						============================================
+						==> https://aws.amazon.com/blogs/opensource/network-load-balancer-nginx-ingress-controller-eks/
+							( by Cornell Anthony | on 09 AUG 2019  )
+							ALB보다 NLB를 쓰는게 더 좋다 
+							- ALB + ALB Ingress Controller		: Ingress 1개당 Load Balaner 가 1개씩 생성됨 ==> 비용 
+							- NLB + Ngingx Ingress Controller	: Load Balancer가 1개만 써서, ingress 를 여러개 쓸수 있고, 모든 Namespace에 대해서 Access 가능, path-based routing 이 가능함
+							
+							* Static IP/elastic IP addresses	: For each Availability Zone (AZ) you enable on the NLB, you have a network interface. Each load balancer node in the AZ uses this network interface to get a static IP address. You can also use Elastic IP to assign a fixed IP address for each Availability Zone.
+							* Scalability						: Ability to handle volatile workloads and scale to millions of requests per second.
+							* Zonal isolation					: The Network Load Balancer can be used for application architectures within a Single Zone. Network Load Balancers attempt to route a series of requests from a particular source to targets in a single AZ while still providing automatic failover should those targets become unavailable.
+							* Source/remote address preservation: With a Network Load Balancer, the original source IP address and source ports for the incoming connections remain unmodified. With Classic and Application load balancers, we had to use HTTP header X-Forwarded-For to get the remote IP address.
+							* Long-lived TCP connections		: Network Load Balancer supports long-running TCP connections that can be open for months or years, making it ideal for WebSocket-type applications, IoT, gaming, and messaging applications.
+							* Reduced bandwidth usage			: Most applications are bandwidth-bound and should see a cost reduction (for load balancing) of about 25% compared to Application or Classic Load Balancers.
+							* SSL termination					: SSL termination will need to happen at the backend, since SSL termination on NLB for Kubernetes is not yet available.
+							
+							
+						==> https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-elb-load-balancer.html
+						==> https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-creating.html#resource-record-sets-elb-dns-name-procedure
+						==> https://aws.amazon.com/ko/route53/pricing/
+							- 12시간내에 삭제한 domain에 대해서는 과금X
+						
+						* How to use a Network Load Balancer with the NGINX Ingress resource in Kubernetes
+						
+						# wget https://raw.githubusercontent.com/cornellanthony/nlb-nginxIngress-eks/master/nlb-service.yaml
+						# wget https://raw.githubusercontent.com/cornellanthony/nlb-nginxIngress-eks/master/apple.yaml
+						# wget https://raw.githubusercontent.com/cornellanthony/nlb-nginxIngress-eks/master/banana.yaml
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	
+	
+	
+	
+	
+	
+	* Ingress 선언시 다른 Namespace를 지정할 경우 subdomain 을 사용할 수 있음
+		apiVersion: extensions/v1beta1
+		kind: Ingress
+		metadata:
+		name: api-ingresse-test
+		namespace: test
+		annotations:
+		kubernetes.io/ingress.class: "nginx"
+		spec:
+		rules:
+		- host: test.anthonycornell.com
+		http:
+			paths:
+			- backend:
+				serviceName: myApp
+				servicePort: 80
+			path: /
+		
+		
+		
+	
+	============================================
+	[ ALB 로 Ingress 구성 / 테스트 ]
+	============================================
+	# eksctl utils associate-iam-oidc-provider --region ap-northeast-2 --cluster ffp-cluster-eksctl --approve
+	[ℹ]  eksctl version 0.16.0
+	[ℹ]  using region ap-northeast-2
+	[ℹ]  will create IAM Open ID Connect provider for cluster "ffp-cluster-eksctl" in "ap-northeast-2"
+	[✔]  created IAM Open ID Connect provider for cluster "ffp-cluster-eksctl" in "ap-northeast-2"
+	
+	[ eksctl Create Policy ]
+	# aws iam create-policy --policy-name ALBIngressControllerIAMPolicy --policy-document https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/iam-policy.json
+	# wget https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/iam-policy.json
+	# aws iam create-policy --policy-name ALBIngressControllerIAMPolicy --policy-document file://./iam-policy.json
+	
+	# aws iam list-policies | jq . > list-policies
+	# cat list-policies | jq '.Policies[] | select ( .PolicyName == "ALBIngressControllerIAMPolicy")'
+	{
+	"PolicyName": "ALBIngressControllerIAMPolicy",
+	"PolicyId": "ANPAZMKVASO3B3QSEXPRT",
+	"Arn": "arn:aws:iam::644960261046:policy/ALBIngressControllerIAMPolicy",
+	"Path": "/",
+	"DefaultVersionId": "v1",
+	"AttachmentCount": 0,
+	"PermissionsBoundaryUsageCount": 0,
+	"IsAttachable": true,
+	"CreateDate": "2020-04-20T05:34:36+00:00",
+	"UpdateDate": "2020-04-20T05:34:36+00:00"
+	}
+	
+	# wget https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/rbac-role.yaml
+	# mv rbac-role.yaml alb-rbac-role.yaml
+	# kubectl apply -f alb-rbac-role.yaml
+	
+	# eksctl create iamserviceaccount \
+    --region ap-northeast-2 \
+    --name alb-ingress-controller \
+    --namespace kube-system \
+    --cluster ffp-cluster-eksctl \
+    --attach-policy-arn arn:aws:iam::644960261046:policy/ALBIngressControllerIAMPolicy \
+    --override-existing-serviceaccounts \
+    --approve
+	
+	[ℹ]  eksctl version 0.16.0
+	[ℹ]  using region ap-northeast-2
+	[ℹ]  1 iamserviceaccount (kube-system/alb-ingress-controller) was included (based on the include/exclude rules)
+	[!]  metadata of serviceaccounts that exist in Kubernetes will be updated, as --override-existing-serviceaccounts was set
+	[ℹ]  1 task: { 2 sequential sub-tasks: { create IAM role for serviceaccount "kube-system/alb-ingress-controller", create serviceaccount "kube-system/alb-ingress-controller" } }
+	[ℹ]  building iamserviceaccount stack "eksctl-ffp-cluster-eksctl-addon-iamserviceaccount-kube-system-alb-ingress-controller"
+	[ℹ]  deploying stack "eksctl-ffp-cluster-eksctl-addon-iamserviceaccount-kube-system-alb-ingress-controller"
+	[ℹ]  serviceaccount "kube-system/alb-ingress-controller" already exists
+	[ℹ]  updated serviceaccount "kube-system/alb-ingress-controller"
+	
+	# eksctl get cluster
+	NAME                    REGION
+	ffp-cluster-eksctl      ap-northeast-2
+
+	# aws ec2 describe-vpcs | jq '.Vpcs[] | .CidrBlock, .VpcId'
+	
+	# wget https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/alb-ingress-controller.yaml
+	# kubectl apply -f alb-ingress-controller.yaml
+	# vi alb-ingress-controller.yaml
+	# kubectl apply -f alb-ingress-controller.yaml
+	deployment.apps/alb-ingress-controller configured
+	
+	# kubectl get pods -l "app.kubernetes.io/name=<Ingress name>,app.kubernetes.io/instance=alb" -n kube-system
+	
+	# wget  https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/2048/2048-namespace.yaml
+	# wget  https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/2048/2048-deployment.yaml
+	# wget  https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/2048/2048-service.yaml
+	# wget  https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/2048/2048-ingress.yaml
+
+	# kubectl apply -f 2048-namespace.yaml
+	# kubectl apply -f 2048-deployment.yaml
+	# kubectl apply -f 2048-service.yaml
+	# kubectl apply -f 2048-ingress.yaml
+	
+	# kc get ing --all-namespaces
+	NAMESPACE   NAME           HOSTS   ADDRESS                                                                       PORTS   AGE
+	2048-game   2048-ingress   *       6dd2b3d3-2048game-2048ingr-6fa0-1707268499.ap-northeast-2.elb.amazonaws.com   80      37m
+	
+	# curl http://6dd2b3d3-2048game-2048ingr-6fa0-1707268499.ap-northeast-2.elb.amazonaws.com
+	
+	
+	# curl -I -H "Host: ffptest.com" http://10.16.140.75/banana
+	# curl -I -H "Host: ffptest.com" http://52.79.237.122/banana
+	# curl -I -H "Host: ffptest.com" http://a84e52c89fe2848fba967f30111b1ffb-974291596.ap-northeast-2.elb.amazonaws.com/banana
+	
+	# traceroute a84e52c89fe2848fba967f30111b1ffb-974291596.ap-northeast-2.elb.amazonaws.com
+	# vi /etc/hosts
+	13.124.34.223 ffptest.com
+	# curl http://www.ffptest.com
+	
+	
+	# curl -I -H "Host: www.ffptest.com" http://10.16.140.75/banana
+	# curl -I -H "Host: www.ffptest.com" http://10.16.140.75/banana
+	# curl -I -H "Host: www.ffptest.com" http://10.16.140.75/banana
+	
+	
+
+		
+		
+	
+	
+	
+	
+	
+	
+
+
+	
+	
+
+###############################################################################################################################################################################
+# [ eksctl 사용 버전으로 다시 ]
+###############################################################################################################################################################################
+1. EKS용 CloudStack 생성 ( EKS-STACK-VPC )
+   
+   => 01_sk-IaC-infra-vpc-base-EKS.yaml 파일
+	  - StackCreater		: kjh-00004-aws-d ( IAM User명 )
+
+	  [ CloudStack Event Log ]		
+	- 2020-04-13 14:44:05 UTC+0900	EKS-BASE-STACK								CREATE_COMPLETE	-
+	- 2020-04-13 14:44:03 UTC+0900	skIaCVpcRoute2Route							CREATE_COMPLETE	-
+	- 2020-04-13 14:43:47 UTC+0900	skIaCVpcRoute1Route							CREATE_COMPLETE	-
+	- 2020-04-13 14:43:45 UTC+0900	skIaCNat2									CREATE_COMPLETE	-
+	- 2020-04-13 14:43:29 UTC+0900	skIaCNat1									CREATE_COMPLETE	-
+	- 2020-04-13 14:41:57 UTC+0900	SKIaCNATPublicSubnet2RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:41:57 UTC+0900	SKIaCNATPublicSubnet1RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:41:56 UTC+0900	skIaCVpcRouteRoute							CREATE_COMPLETE	-
+	- 2020-04-13 14:41:40 UTC+0900	SKIaCNATPublicSubnet2						CREATE_COMPLETE	-
+	- 2020-04-13 14:41:40 UTC+0900	SKIaCNATPublicSubnet1						CREATE_COMPLETE	-
+	- 2020-04-13 14:41:39 UTC+0900	VPCGatewayAttachment						CREATE_COMPLETE	-
+	- 2020-04-13 14:41:25 UTC+0900	skIaCVpcRoute								CREATE_COMPLETE	-
+	- 2020-04-13 14:41:25 UTC+0900	skIaCVpcRoute1								CREATE_COMPLETE	-
+	- 2020-04-13 14:41:24 UTC+0900	skIaCVpcRoute2								CREATE_COMPLETE	-
+	- 2020-04-13 14:41:22 UTC+0900	skIaCEip1									CREATE_COMPLETE	-
+	- 2020-04-13 14:41:22 UTC+0900	skIaCVpc									CREATE_COMPLETE	-
+	- 2020-04-13 14:41:21 UTC+0900	skIaCEip2									CREATE_COMPLETE	-
+	- 2020-04-13 14:41:21 UTC+0900	skIaCVpcIgw									CREATE_COMPLETE	-
+	...
+	- 2020-04-13 14:41:02 UTC+0900	EKS-BASE-STACK								CREATE_IN_PROGRESS	User Initiated
+
+2. EKS용 CloudStack 생성 ( EKS-STACK-SUBNET )
+
+   => 02_sk-IaC-infra-vpc-svc-EKSCluster.yaml 파일
+      - ParentStackName : EKS-BASE_STACK   ( 1에서 생성한 STACK명 )
+	  - StackCreater		: kjh-00004-aws-d ( IAM User명 )
+	  
+	  [ CloudStack Event Log ]
+	- 2020-04-13 14:53:13 UTC+0900	EKS-CLUSTER-STACK									CREATE_COMPLETE	-
+	- 2020-04-13 14:53:11 UTC+0900	SVCNodeGroup1PrivateSubnet1RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:53:11 UTC+0900	SVCNodeGroup2PrivateSubnet1RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:53:11 UTC+0900	SVCLoadBalancePublicSubnet2RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:53:11 UTC+0900	SVCLoadBalancePublicSubnet1RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:53:11 UTC+0900	SVCNodeGroup1PrivateSubnet2RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:53:10 UTC+0900	SVCNodeGroup2PrivateSubnet2RouteTableAssociation	CREATE_COMPLETE	-
+	- 2020-04-13 14:52:54 UTC+0900	SVCNodeGroup2PrivateSubnet1							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:54 UTC+0900	SVCNodeGroup1PrivateSubnet1							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:53 UTC+0900	SVCLoadBalancePublicSubnet1							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:53 UTC+0900	SVCLoadBalancePublicSubnet2							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:53 UTC+0900	SVCNodeGroup1PrivateSubnet2							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:53 UTC+0900	SVCNodeGroup2PrivateSubnet2							CREATE_COMPLETE	-
+	- 2020-04-13 14:52:42 UTC+0900	ControlPlaneSecurityGroup							CREATE_COMPLETE	-
+	...
+	- 2020-04-13 14:52:33 UTC+0900	EKS-CLUSTER-STACK									CREATE_IN_PROGRESS	User Initiated
+	
+3. IAM Role 생성
+
+	[ 수동생성한 Role - BASTION 서버용 ]
+	- Role명	: 	EKS-BASTION-ROLE
+	- Policy	: 	AmazonEC2FullAccess
+	
+	[ 수동생성한 Role - EKS Cluster 용 ]
+	- Role명	: 	EKS-IAM-ROLE
+	- Policy	: 	AmazonEKSClusterPolicy
+					AmazonEKSServicePolicy
+					AmazonEKSWorkerNodePolicy
+					AmazonEC2ContainerServiceAutoscaleRole
+					AmazonEKS_CNI_Policy
+					
+	[ eksctl 로 Cluster 생성시 생기는 Role ]
+	
+	- Role명	:	eksctl-ffp-cluster-type2-cluster-ServiceRole-ZC9CRAM4Y4Y2
+	- Policy	: 	AmazonEKSClusterPolicy
+					AmazonEKSServicePolicy
+					eksctl-ffp-cluster-type2-cluster-PolicyCloudWatchMetrics
+						CloudWatch ( Limited: Write)
+					eksctl-ffp-cluster-type2-cluster-PolicyNLB
+						EC2		( Limited: List, Read, Write )
+						ELB
+						ELB v2
+
+	- Role명	:	eksctl-ffp-cluster-type2-nodegrou-NodeInstanceRole-BZ0495K6XAGP
+	- Policy	: 	AmazonEKSWorkerNodePolicy
+					AmazonEC2ContainerRegistryReadOnly
+					CloudWatchAgentServerPolicy
+					AmazonEKS_CNI_Policy
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyALBIngress
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyAutoScaling
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyEBS
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyEFS
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyEFSEC2
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyFSX
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-proxy-PolicyServiceLinkRole
+					
+	- Role명	:	eksctl-ffp-cluster-type2-nodegrou-NodeInstanceRole-ZIU7621Q4XIY
+	- Policy	: 	AmazonEKSWorkerNodePolicy
+					AmazonEC2ContainerRegistryReadOnly
+					CloudWatchAgentServerPolicy
+					AmazonEKS_CNI_Policy
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyALBIngress
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyAutoScaling
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyEBS
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyEFS
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyEFSEC2
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyFSX
+					eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker-PolicyServiceLinkRole
+
+4. EKS Cluster 생성
+
+	1. 김상경 수석님 CloudFormation 활용 -> eksctl 사용
+	   => 실패 ( 25분 Timeout남 )
+	   
+	2. VPC / PrivateSubnet만 생성 -> eksctl 사용
+	   => 성공
+	   
+	3. VPC도 없이 그냥 eksctl만 사용
+	   => 
+		# date; eksctl create cluster -f ffp-cluster-type4.yaml --timeout 10m ; date
+
+========================================================================================================================================================================================
+Logical ID									Physical ID													Type									Status				Status reason
+========================================================================================================================================================================================
+ClusterSharedNodeSecurityGroup				sg-0c144efed20a0c61e										AWS::EC2::SecurityGroup					CREATE_COMPLETE		-
+ControlPlane								ffp-cluster-eksctl											AWS::EKS::Cluster						CREATE_IN_PROGRESS	Resource creation Initiated
+ControlPlaneSecurityGroup					sg-012172f403cfb91eb										AWS::EC2::SecurityGroup					CREATE_COMPLETE	-
+IngressInterNodeGroupSG						IngressInterNodeGroupSG										AWS::EC2::SecurityGroupIngress			CREATE_COMPLETE	-
+InternetGateway								igw-0b5d69246f785cdd1										AWS::EC2::InternetGateway				CREATE_COMPLETE	-
+NATGateway									nat-0e2957eced502ac1b										AWS::EC2::NatGateway					CREATE_COMPLETE	-
+NATIP										15.164.65.190												AWS::EC2::EIP							CREATE_COMPLETE	-
+NATPrivateSubnetRouteAPNORTHEAST2A			eksct-NATPr-12SDCGXZQG6V5									AWS::EC2::Route							CREATE_COMPLETE	-
+NATPrivateSubnetRouteAPNORTHEAST2B			eksct-NATPr-1GQ03CF3FR75N									AWS::EC2::Route							CREATE_COMPLETE	-
+NATPrivateSubnetRouteAPNORTHEAST2C			eksct-NATPr-SOUQC7J6N042									AWS::EC2::Route							CREATE_COMPLETE	-
+PolicyCloudWatchMetrics						eksct-Poli-1G8VTNR6TP1VP									AWS::IAM::Policy						CREATE_COMPLETE	-
+PolicyNLB									eksct-Poli-N9ZCDUJBE6PB										AWS::IAM::Policy						CREATE_COMPLETE	-
+PrivateRouteTableAPNORTHEAST2A				rtb-0528b5b2b90a8f253										AWS::EC2::RouteTable					CREATE_COMPLETE	-
+PrivateRouteTableAPNORTHEAST2B				rtb-0c25980856eb5947b										AWS::EC2::RouteTable					CREATE_COMPLETE	-
+PrivateRouteTableAPNORTHEAST2C				rtb-06055ea631c1fd302										AWS::EC2::RouteTable					CREATE_COMPLETE	-
+PublicRouteTable							rtb-0ddd8176cb256c0ea										AWS::EC2::RouteTable					CREATE_COMPLETE	-
+PublicSubnetRoute							eksct-Publi-1HUX6Y407DLH1									AWS::EC2::Route							CREATE_COMPLETE	-
+RouteTableAssociationPrivateAPNORTHEAST2A	rtbassoc-05cdf28a6d15a84c0									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+RouteTableAssociationPrivateAPNORTHEAST2B	rtbassoc-0049bfd5dec26114d									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+RouteTableAssociationPrivateAPNORTHEAST2C	rtbassoc-0bee072e160150648									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+RouteTableAssociationPublicAPNORTHEAST2A	rtbassoc-0e73a53a65fa9bebe									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+RouteTableAssociationPublicAPNORTHEAST2B	rtbassoc-02914f828b9523293									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+RouteTableAssociationPublicAPNORTHEAST2C	rtbassoc-0d1e9087549c456ef									AWS::EC2::SubnetRouteTableAssociation	CREATE_COMPLETE	-
+ServiceRole									eksctl-ffp-cluster-eksctl-cluster-ServiceRole-ZG14HHCF65H7	AWS::IAM::Role							CREATE_COMPLETE	-
+SubnetPrivateAPNORTHEAST2A					subnet-0716f8d368ad22e8c									AWS::EC2::Subnet						CREATE_COMPLETE	-
+SubnetPrivateAPNORTHEAST2B					subnet-0247194ba9c724b05									AWS::EC2::Subnet						CREATE_COMPLETE	-
+SubnetPrivateAPNORTHEAST2C					subnet-0b604fc9f306561a2									AWS::EC2::Subnet						CREATE_COMPLETE	-
+SubnetPublicAPNORTHEAST2A					subnet-09ee797a4e7845069									AWS::EC2::Subnet						CREATE_COMPLETE	-
+SubnetPublicAPNORTHEAST2B					subnet-01608ef7b2b64b1ed									AWS::EC2::Subnet						CREATE_COMPLETE	-
+SubnetPublicAPNORTHEAST2C					subnet-0d263b7ff17097776									AWS::EC2::Subnet						CREATE_COMPLETE	-
+VPC											vpc-0c8d51dea1fb62898										AWS::EC2::VPC							CREATE_COMPLETE	-
+VPCGatewayAttachment						eksct-VPCGa-1FF1TRQO0WOUB									AWS::EC2::VPCGatewayAttachment			CREATE_COMPLETE	-
+========================================================================================================================================================================================
+	
+	
+	- ECR 과는 어떻게 연동할껀가?
+		=> https://aws.amazon.com/blogs/compute/setting-up-aws-privatelink-for-amazon-ecs-and-amazon-ecr/
+		=> Private Subnet에서 ECR을 사용하는 방법
+		
+	- eksctl 용으로 사용하는 yaml 로 cluster 생성이 아래 Error 가 발생하는건
+		=> EC2 인스턴스가 EKS에 Join되지 못하기 때문임
+		=> docker 가 정상적으로 재기동되지 않기 때문임
+		=> VM에서 /etc/docker/daemon.json 수정하고 재기동해도면 안됨.
+
+		[ℹ]  nodegroup "ffp-unmanaged-ng-proxy" has 0 node(s)
+		[ℹ]  waiting for at least 1 node(s) to become ready in "ffp-unmanaged-ng-proxy"
+		
+		=> 아래 설정을 빼야함.
+		preBootstrapCommands:
+		# allow docker registries to be deployed as cluster service ( Need. ECR )
+		- 'echo {\"insecure-registries\": [\"172.20.0.0/16\",\"10.100.0.0/16\"]} > /etc/docker/daemon.json'
+		- "systemctl restart docker"
+		
+		=> 빼도 안됨
+		=> 처음처럼 VPC / PrivateSubnet만 만들고 해보자 
+
+	
+	
+	
+======================================================================================================================================================
+[ VPC 목록 ]
+FFP-d-vpc								vpc-00bb68e8057b64f66		available	10.16.0.0/16	-	dopt-cd9412a6	rtb-0fa67eab5546bda1d	acl-0df9d65863775454e
+
+[ VPC -> SubNet 목록 ]
+service-loadbalance-public-d-subnet1	subnet-002e690f24d624b11	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.0.32/27		27	-	ap-northeast-2a	apne2-az1	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-loadbalance-public-d-subnet2	subnet-05cdfcf164bc2c15b	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.32.32/27		27	-	ap-northeast-2b	apne2-az2	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-loadbalance-public-d-subnet3	subnet-0c6a228a82c18d4d6	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.64.32/27		27	-	ap-northeast-2c	apne2-az3	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-nat-public-p-subnet1			subnet-09e115e55da6e05a5	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.0.0/28		9	-	ap-northeast-2a	apne2-az1	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-nat-public-p-subnet2			subnet-0628601413a6a344f	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.32.0/28		10	-	ap-northeast-2b	apne2-az2	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-nat-public-p-subnet3			subnet-09e2e39c02024a7ba	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.64.0/28		10	-	ap-northeast-2c	apne2-az3	rtb-0cf2876ae6c946998 | FFP-d-route	acl-0df9d65863775454e
+service-nodegrp1-private-d-subnet1		subnet-0f7101ad7cff51732	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.32.128/26		59	-	ap-northeast-2a	apne2-az1	rtb-0fa67eab5546bda1d	acl-0df9d65863775454e
+service-nodegrp1-private-d-subnet2		subnet-0206185592766d486	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.64.128/26		59	-	ap-northeast-2b	apne2-az2	rtb-0fa67eab5546bda1d	acl-0df9d65863775454e	
+service-nodegrp1-private-d-subnet3		subnet-092fe63be54b653a4	available	vpc-00bb68e8057b64f66 | FFP-d-vpc	10.16.128.128/26	59	-	ap-northeast-2c	apne2-az3	rtb-0fa67eab5546bda1d	acl-0df9d65863775454e
+
+[ Elastic IPs ]
+FFP-d-eip1	3.34.63.10		eipalloc-022c22701e9ac1814	-	10.16.0.14	vpc	eipassoc-ba21b446	eni-0e288af5fb4f1f997	644960261046
+FFP-d-eip2	13.125.111.139	eipalloc-099e69d04a04f127c	-	10.16.32.4	vpc	eipassoc-7b4aa2b6	eni-07099cc799bddc33c	644960261046
+FFP-d-eip3	54.180.13.237	eipalloc-0a31652c91af8a7f1	-	10.16.64.12	vpc	eipassoc-15b56ccf	eni-0adefddc4c2f8176a	644960261046
+======================================================================================================================================================
+
+
+
+[ EC2 Type ]
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Instance type	vCPUs	Architecture	Memory (MiB)	Storage (GB)	Storage type	Network performance		On-Demand Linux pricing		On-Demand Windows pricing
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+t3.medium		2		x86_64			4096			-				-				Up to 5 Gigabit			0.052  USD per Hour	   		0.0704 USD per Hour
+t3.micro		2		x86_64			1024			-				-				Up to 5 Gigabit			0.013  USD per Hour
+
+t2.medium		2		i386, x86_64	4096			-				-				Low to Moderate			0.0576 USD per Hour	   		0.0756 USD per Hour
+t2.micro		1		i386, x86_64	1024			-				-				Low to Moderate			0.0144 USD per Hour	   		0.019 USD per Hour
+
+※ t3.medium 로 3 Node / 24 시간 = 3.744 USD = 4,492원 ( 환율 1,200원 )
+
+
+
+	
+	
+
+
+
+
+
+###############################################################################################################################################################################
+# eksctl 사용 버전
+###############################################################################################################################################################################
+0. AWS CLI / eksctl 구성 ( 별도 VM에서 CentOS 생성후 수행 - https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html )
+
+	[ Install jq ]
+	# wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+	# chmod 777 jq-linux64
+	# mv jq-linux64 /usr/bin/jq
+
+	[ Install Python3 ]
+	# yum install -y python3-devel.x86_64
+
+	[ Install PIP ]
+	# curl -O https://bootstrap.pypa.io/get-pip.py
+	# python3 get-pip.py --user
+	# pip3 --version
+	WARNING: pip is being invoked by an old script wrapper. This will fail in a future version of pip.
+	Please see https://github.com/pypa/pip/issues/5599 for advice on fixing the underlying issue.
+	To avoid this problem you can invoke Python with '-m pip' instead of running pip directly.
+	pip 20.0.2 from /root/.local/lib/python3.6/site-packages/pip (python 3.6)
+	
+	[ Install AWS CLI - Version 1.18.41 ]
+	# pip3 install awscli --upgrade --user
+	
+	# vi ~/.bash_profile
+	export PATH=${PATH}:~/.local/bin:.
+	
+	# . ~/.bash_profile
+	
+	# aws --version
+	aws-cli/1.18.41 Python/3.6.8 Linux/3.10.0-1062.el7.x86_64 botocore/1.15.41
+
+	
+	[ AWS CLI - Configure ( Authentication 구성 ) ]
+	# aws configure
+	  - Access Key ID					: KKKKK ( AWS콘솔 -> IAM -> User -> Security credentials )
+	  - Secret access key				: KKKKK ( Access Key 생성하고 나서 뜨는 팝업에서 "show" 에서만 보임. 잊어버리면 다시 만들어야함. "Download .csv file"로 파일저장해놓던지. )
+	  - Default region name [None]		: ap-northeast-2
+	  - Default output format [None]	: json
+	# aws iam list-access-keys | jq .
+	# aws ec2 describe-instances | jq .
+	
+	[ eksctl 설치 ]
+	# curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+	# mv /tmp/eksctl /usr/local/bin
+	# eksctl version
+	0.16.0
+	
+	[ kubectl 설치 ]
+	# curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+	# mv kubectl /usr/bin/kubectl
+	# chmod 755  /usr/bin/kubectl
+	# kubectl version
+
+4. EKS용 CloudStack 생성 ( EKS-NODEGROUP-STACK )
+   => 03_sk-IaC-infra-vpc-svc-EKSNodeGroup.yaml 파일
+	  - ParentStackName 	: EKS-CLUSTER-STACK   ( 2에서 생성한 STACK명 )
+	  - StackCreater		: KKKKK ( IAM User명 )
+	  - EKS Cluster 		: FFP-EKS
+	  - NodeGroupName 		: EKS-NODEGROUP
+      - NodeInstanceType	: t3.medium ( 2 core / 4 GB )
+	  - NodeImagedId		: ami-08a18de5609e8f781 ( 구글에서 "EKS AMI"로 Search )
+	  - NodeVolumeSize		: 40
+	  - KeyName				: ffp key ( KKKKK )
+	  - Worker Network Configuration - SubNets	: service-nodegrp1-private-d-subnet1 ( 10.166/0.128/16 )
+	  
+	  ※ IAM을 생성한다는 Noti에 Check 하고 생성
+	  ==> EC2 3개가 생성됨
+	  ==> eksctl 로 지정해서 생성할거니까. EC2 3개는 삭제할것 ( Terminating ... )
+	  
+	  ※ EKS-NODEGROUP-role 이 생성되는데 AWS Service가 EC2임 ( 왜 EKS가 아니지?? )
+	  
+	  
+	  
+	  [ CloudStack Event Log ]
+	- 2020-04-13 15:14:51 UTC+0900	EKS-NODEGROUP-1-STACK							CREATE_COMPLETE	-
+	- 2020-04-13 15:14:49 UTC+0900	NodeGroup										CREATE_COMPLETE	-
+	- 2020-04-13 15:13:15 UTC+0900	NodeLaunchConfig								CREATE_COMPLETE	-
+	- 2020-04-13 15:13:12 UTC+0900	NodeInstanceProfile								CREATE_COMPLETE	-
+	- 2020-04-13 15:11:08 UTC+0900	NodeInstanceRole								CREATE_COMPLETE	-
+	- 2020-04-13 15:10:57 UTC+0900	ControlPlaneEgressToNodeSecurityGroup			CREATE_COMPLETE	-
+	- 2020-04-13 15:10:57 UTC+0900	ControlPlaneEgressToNodeSecurityGroupOn443		CREATE_COMPLETE	-
+	- 2020-04-13 15:10:57 UTC+0900	NodeSecurityGroupFromControlPlaneOn443Ingress	CREATE_COMPLETE	-
+	- 2020-04-13 15:10:57 UTC+0900	ClusterControlPlaneSecurityGroupIngress			CREATE_COMPLETE	-
+	- 2020-04-13 15:10:56 UTC+0900	NodeSecurityGroupIngress						CREATE_COMPLETE	-
+	- 2020-04-13 15:10:56 UTC+0900	NodeSecurityGroupFromControlPlaneIngress		CREATE_COMPLETE	-
+	- 2020-04-13 15:10:54 UTC+0900	NodeSecurityGroup								CREATE_COMPLETE	-
+	- .....
+	- 2020-04-13 15:10:45 UTC+0900	EKS-NODEGROUP-1-STACK							CREATE_IN_PROGRESS	User Initiated
+
+5-1. CloudFormation으로 생성한 3개 yaml을 모두 삭제함
+
+	※ 서비스 생성 참조 URL
+		- https://docs.aws.amazon.com/eks/latest/userguide/alb-ingress.html
+		
+5-2. CloudFormation / 수동으로 VPC 1 -> SubNet 3 만듬 ( SubNet은 Private만 )
+
+5. EKS Cluster 생성
+	* 참고 - https://docs.aws.amazon.com/ko_kr/eks/latest/userguide/create-cluster.html )
+	* 참고 - https://docs.aws.amazon.com/ko_kr/eks/latest/userguide/eksctl.html
+	* 참고 - https://github.com/weaveworks/eksctl
+	* 참고 - https://eksctl.io/introduction/getting-started/
+	* 참고 - https://github.com/weaveworks/eksctl/tree/master/examples	 ( 매우매우 유용함 ★★★★★★★★★★ )
+
+	==> "nodeGroups" 로 구성한 un-managed nodegroup은 AWS -> EKS NodeGroup 에서 볼수 있음
+	     eksctl get nodegroup 으로도 보임
+	
+	==> "ManagedNodegropu" 으로는 구성불가함
+			"[✖]  unexpected status "DELETE_FAILED" while waiting for CloudFormation stack "eksctl-ffp-cluster-type2-nodegroup-ffp-unmanaged-ng-worker"
+			오류가 나는데 왜 나는지 알수가 없음
+			- EKS -> NodeGroup에서 수동으로 생성해봐도 오류남
+			
+			
+	==> ffp-test-cluster.yaml 파일로 EKS Cluster 생성시 필요한 정보
+		- VPC : AZ 별로 1개씩 만들어서 yaml 파일에서 subnets 에 지정해서 사용하면 될것 같음
+		- CSI : Storage는 EFS / EBS 중에 뭐 쓸지 결정해서 미리 생성해야함
+		- CLOUDWATCH : 미리 만들어놔야 하는건가??
+		- ALB : 미리 생성안해도 되긴 하는건가??
+		- Role : 이것도 따로 필요 없는거 같은데?
+		
+		
+		
+	# date; eksctl create cluster -f ffp-test-cluster-test1.yaml
+	# date; eksctl update cluster -f ffp-test-cluster-test2.yaml   # AZ 2b로 subnet 1개 추가한 파일
+	  ==> Subnet 은 eksctl update로 추가가되지 않음. cluster를 지우고 처음부터 다시 만들어야됨. ( 처음부터 잘하자. AZ 3개 다 쓰는걸로 )
+	  ==> Subnet 은 동적추가가 되지 않으므로, cidr 설정에 주의해야함                          ( 테스트시에는 */26 이라서 사용가능한 IP가 59개 뿐임 )
+	  ==> Subnet 을 동적추가하려면 아래 처럼 command를 따로 써야함 ( yaml 로 안됨 )
+	      # eksctl update cluster --vpc-private-subnets=
+	
+	# aws eks describe-cluster --name ffp-test-cluster | jq .
+	
+	# eksctl get cluster
+	# 
+
+
+###############################################################################################################################################################################
+# 중단 버전
+# - 김상경 수석님. CloudFormation 대로 3개 생성하고
+# - EKS Cluster 에서 NodeGroup 생성하려고 하면 생성할 수 없음 ( Node IAM Role 지정 불가 )
+# - EC2 인스턴스를 개별적으로 생성해서 EKS Cluster에 붙이면 될거 같은데... UI로 수작업하는거라서 운영 맞지 않음 ( 중단 )
+###############################################################################################################################################################################
+5. EKS Cluster 생성
+
+	[ EKS-IAM-ROLE - EKS용 IAM 생성 ]
+	# AWS -> IAM -> ROLE -> Create Role ( 아래 2개 선택 )
+		- AmazonEKSClusterPolicy
+		- AmazonEKSServicePolicy
+	
+	[ EKS-CLUSTER 생성 ]	
+	# AWS -> EKS -> Create Cluster
+		- CLUSTER	: FFP-CLUSTER
+		- IAM		: EKS-IAM-ROLE ( 위에서 생성한 )
+	
+	[ kubectl 환경 설정 ]
+	# aws eks update-kubeconfig --name FFP-CLUSTER --region ap-northeast-2
+	  또는 수동으로 /root/.kube/kubeconfig 생성 ( https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html ) 
+	  
+	# cat /root/.kube/config
+	
+	# kc get svc --show-labels
+		NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE   LABELS
+		kubernetes   ClusterIP   172.20.0.1   <none>        443/TCP   12m   component=apiserver,provider=kubernetes
+		
+	# kc get node
+		No resources found in default namespace.
+
+
+	
+5. EKS NodeGroup 생성 ( Managed NodeGroup으로 생성함 )
+	※ Managed NodeGroup과 Un-managed NodeGroup의 차이
+		=> https://aws.amazon.com/blogs/containers/eks-managed-node-groups/
+		   * Managed NodeGroup은 AMI를 지정안함 ( EKS에 표준 AMI를 자동으로 사용하므로 AMI 를 유지관리할 필요가 없음 )
+
+	# AWS -> EKS -> NodeGroup Add
+		- NAME				: Managed-ng-1
+		- IAM Role			: EKS-NODEGROUP-ROLE
+		- Security Groups	: EKS-NODEGROUP-STACK-NodeSecurityGroup-###
+		- MinSize			: 3
+		- MaxSize			: 6
+		- DesiredSize		: 3
+		
+		==> NodeGroup 생성시 "Node I-AM Role" 선택하는데서 아무 Role도 list-up 되지 않음
+		    ( IAM에서 이것 저것 생성해봤으나.... 아무것도 안보임 )
+			
+
+		
+		
+#########################
+	  
+
+
+
+
+
+
+
+
+	
+	
+	
+	
+	
+
