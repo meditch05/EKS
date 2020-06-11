@@ -719,7 +719,7 @@
 	
 
 ################################################
-[ Dual CIDR 미 사용시 => 사용시 ]  => NLB 통해서 들어가면 어디선가 막힌다.
+[ Dual CIDR 미 사용시 => 사용시 ]  => NLB 통해서 들어가면 어디선가 막힌다.  
 ################################################
 
 3. Ingress 호출 테스트 ( NLB에 할당된 Public IP가 어떨땐 2개고, 어떨땐 3개여 ㅡ_ㅡ;;; )
@@ -759,3 +759,212 @@
 	# nginx-ingress-controller	에서 nginx-ingress-controller svc 호출 ( OK )
 	=> wget --header 'Host: ffptest.com' http://172.20.30.191/apple ; cat apple ; rm -rf apple
 	=> wget --header 'Host: ffptest.com' http://172.20.30.191/banana; cat banana; rm -rf banana
+	
+	
+	
+	
+	
+	
+	
+	
+[ 2020-06-11 ]
+
+################################################
+# Dual CIDR + NLB 사용시 ingress 호출시 50% Fail 나는거 F/U ==> 이건 준식이가 F/U 하는걸로
+################################################
+
+################################################
+# EKS에 GitLab + Jenkins + EFS Provisioner 구성
+################################################
+[ EFS 볼륨 생성 ]
+1. EKS Cluster 의 VPC 를 사용하도록 생성
+	=> AZ 3개에 Main CIDR 대역으로 3개의 IP를 사용하게됨
+	=> EFS의 DNS Name 확인 : fs-39c6f358.efs.ap-northeast-2.amazonaws.com
+   
+2. Security Group 변경 ( default로 하면 EFS Provisionner에서 EFS 볼륨 사용못하니, EKS Cluster의 Security Group을 지정해야함. )
+	=> sg-05abc447a66a03a33 - eks-cluster-sg-skcc05599-647076920
+   
+   
+[ EFS Provisioner 생성 ]
+
+# helm search repo stable/efs-provisioner
+# cd ~/EKS/cluster/HELM3/charts 
+# helm fetch  stable/efs-provisioner
+# tar -xvf efs-provisioner-0.11.1.tgz
+# cd efs-provisioner
+# diff values.yaml.edit values.yaml.ori
+9c9
+<   deployEnv: prd
+---
+>   deployEnv: dev
+38,40c38,40
+<   efsFileSystemId: fs-39c6f358
+<   awsRegion: ap-northeast-2
+<   path: /efs-pv
+---
+>   efsFileSystemId: fs-12345678
+>   awsRegion: us-east-2
+>   path: /example-pv
+44c44
+<     isDefault: true
+---
+>     isDefault: false
+49c49
+<     reclaimPolicy: Retain
+---
+>     reclaimPolicy: Delete
+79,80c79
+< nodeSelector:
+<   role: devops
+---
+> nodeSelector: {}
+
+
+
+# kc create ns infra
+# helm install efs-provisioner --namespace infra -f values.yaml.edit stable/efs-provisioner
+....
+You can provision an EFS-backed persistent volume with a persistent volume claim like below:
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: my-efs-vol-1
+  annotations:
+    volume.beta.kubernetes.io/storage-class: aws-efs
+spec:
+  storageClassName: aws-efs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Mi
+	  
+[ GitLab 구성 ]
+
+# helm repo add gitlab https://charts.gitlab.io/
+# helm repo update
+# helm search repo gitlab
+# helm fetch gitlab/gitlab
+# tar -xvf gitlab*.tgz
+# cd gitlab
+# vi  storageClass.yaml
+  gitaly:
+    persistence:
+      storageClass: aws-efs
+      size: 50Gi
+postgresql:
+  persistence:
+    storageClass: aws-efs
+    size: 8Gi
+minio:
+  persistence:
+    storageClass: aws-efs
+    size: 10Gi
+redis:
+  master:
+    persistence:
+      storageClass: aws-efs
+      size: 5Gi
+	  
+# kubectl create secret generic custom-gitlab-ca -n infra
+
+
+# diff values.yaml.edit values.yaml.ori
+31c31
+<   edition: ce
+---
+>   edition: ee
+43c43
+<     domain: gitlab.ffptest.com
+---
+>     domain: example.com
+45c45
+<     https: false
+---
+>     https: true
+55c55
+<     configureCertmanager: false
+---
+>     configureCertmanager: true
+57c57
+<     enabled: false
+---
+>     enabled: true
+404c404
+<   time_zone: Seoul
+---
+>   time_zone: UTC
+452c452
+<   enabled: false
+---
+>   enabled: true
+474c474
+<   createCustomResource: false
+---
+>   createCustomResource: true
+478c478
+<   install: false
+---
+>   install: true
+490c490
+<   enabled: false
+---
+>   enabled: true
+538c538
+<   install: false
+---
+>   install: true
+558c558
+<   install: false
+---
+>   install: true
+573c573
+<   install: false
+---
+>   install: true
+596c596
+<   enabled: false
+---
+>   enabled: true
+603c603
+<   install: false
+---
+>   install: true
+
+# helm install gitlab --namespace infra -f values.yaml.edit -f storageClass.yaml gitlab/gitlab
+
+		# helm uninstall gitlab --namespace infra
+		# kc get secret -n infra | egrep "^gitlab"               | awk '{print $1}' | xargs kubectl delete -n infra secret
+		# kc get cm     -n infra | egrep "^gitlab|^cert-manager" | awk '{print $1}' | xargs kubectl delete -n infra cm 
+
+
+※ PVC가 필요한 내부 Package
+	- Gitaly (persists the Git repositories)
+	- PostgreSQL (persists the GitLab database data)
+	- Redis (persists GitLab job data)
+	- MinIO (persists the object storage data)
+
+################################################
+# Pipeline 구성 / App 배포
+################################################
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
