@@ -1,4 +1,0 @@
-    external_url 'gitlab.mwportal.com'
-    gitlab_rails['initial_root_password'] = "alskfl12~!"
-    registry_external_url 'https://gitlab.mwportal.com'
-    nginx['client_max_body_size'] = '1024m'
