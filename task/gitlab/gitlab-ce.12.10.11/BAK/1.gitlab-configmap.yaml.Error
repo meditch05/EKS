@@ -1,0 +1,242 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-ce
+  namespace: infra
+  labels:
+    app: gitlab-ce
+    ver: 12.1.0-ce
+data:
+  gitlab.rb: |-
+    # external_url = 'gitlab.mwportal.com'
+    gitlab_rails['initial_root_password'] = "alskfl12~!"
+    # registry_external_url 'https://gitlab.mwportal.com'
+    nginx['client_max_body_size'] = '1024m'
+
+    ################################################################################
+    ## Prometheus
+    ################################################################################
+    monitoring_role['enable'] = true
+    prometheus['enable'] = true
+    prometheus['monitor_kubernetes'] = true
+    prometheus['username'] = 'nil' # 'gitlab-prometheus'
+    # prometheus['group'] = 'nil'    # 'gitlab-prometheus'
+    prometheus['uid'] = nil
+    prometheus['gid'] = nil
+    prometheus['shell'] = '/bin/sh'
+    prometheus['home'] = '/var/opt/gitlab/prometheus'
+    prometheus['log_directory'] = '/var/log/gitlab/prometheus'
+    prometheus['rules_files'] = ['/var/opt/gitlab/prometheus/rules/*.rules']
+    prometheus['scrape_interval'] = 15
+    prometheus['scrape_timeout'] = 15
+    prometheus['env_directory'] = '/opt/gitlab/etc/prometheus/env'
+    #prometheus['env'] = {
+    #  'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    #}
+    
+    ### Custom scrape configs
+    #
+    # Prometheus can scrape additional jobs via scrape_configs.  The default automatically
+    # includes all of the exporters supported by the omnibus config.
+    #
+    # See: https://prometheus.io/docs/operating/configuration/#<scrape_config>
+    #
+    # Example:
+    #
+    # prometheus['scrape_configs'] = [
+    #   {
+    #     'job_name': 'example',
+    #     'static_configs' => [
+    #       'targets' => ['hostname:port'],
+    #     ],
+    #   },
+    # ]
+    #
+    ### Custom alertmanager config
+    #
+    # To configure external alertmanagers, create an alertmanager config.
+    #
+    # See: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config
+    #
+    # prometheus['alertmanagers'] = [
+    #   {
+    #     'static_configs' => [
+    #       {
+    #         'targets' => [
+    #           'hostname:port'
+    #         ]
+    #       }
+    #     ]
+    #   }
+    # ]
+    #
+    ### Custom Prometheus flags
+    #
+    # prometheus['flags'] = {
+    #   'storage.tsdb.path' => "#{node['gitlab']['prometheus']['home']}/data",
+    #   'storage.tsdb.retention.time' => "15d",
+    #   'config.file' => "#{node['gitlab']['prometheus']['home']}/prometheus.yml"
+    # }
+    
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # prometheus['listen_address'] = 'localhost:9090'
+    prometheus['listen_address'] = 'prometheus-server.monitoing.svc.cluster.local:9090'
+
+    ################################################################################
+    ## Prometheus Alertmanager
+    ################################################################################
+    # alertmanager['enable'] = true
+    # alertmanager['home'] = '/var/opt/gitlab/alertmanager'
+    # alertmanager['log_directory'] = '/var/log/gitlab/alertmanager'
+    # alertmanager['admin_email'] = 'admin@example.com'
+    # alertmanager['flags'] = {
+    #   'web.listen-address' => "#{node['gitlab']['alertmanager']['listen_address']}"
+    #   'storage.path' => "#{node['gitlab']['alertmanager']['home']}/data"
+    #   'config.file' => "#{node['gitlab']['alertmanager']['home']}/alertmanager.yml"
+    # }
+    # alertmanager['env_directory'] = '/opt/gitlab/etc/alertmanager/env'
+    # alertmanager['env'] = {
+    #   'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    # }
+    
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # alertmanager['listen_address'] = 'localhost:9093'
+    
+    ################################################################################
+    ## Prometheus Node Exporter
+    ##! Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/node_exporter.html
+    ################################################################################
+    # node_exporter['enable'] = true
+    # node_exporter['home'] = '/var/opt/gitlab/node-exporter'
+    # node_exporter['log_directory'] = '/var/log/gitlab/node-exporter'
+    # node_exporter['flags'] = {
+    #   'collector.textfile.directory' => "#{node['gitlab']['node-exporter']['home']}/textfile_collector"
+    # }
+    # node_exporter['env_directory'] = '/opt/gitlab/etc/node-exporter/env'
+    # node_exporter['env'] = {
+    #   'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    # }
+    
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # node_exporter['listen_address'] = 'localhost:9100'
+    
+    ################################################################################
+    ## Prometheus Redis exporter
+    ##! Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/redis_exporter.html
+    ################################################################################
+    
+    # redis_exporter['enable'] = true
+    # redis_exporter['log_directory'] = '/var/log/gitlab/redis-exporter'
+    # redis_exporter['flags'] = {
+    #   'redis.addr' => "unix://#{node['gitlab']['gitlab-rails']['redis_socket']}",
+    # }
+    # redis_exporter['env_directory'] = '/opt/gitlab/etc/redis-exporter/env'
+    # redis_exporter['env'] = {
+    #   'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    # }
+    
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # redis_exporter['listen_address'] = 'localhost:9121'
+    ################################################################################
+    ## Prometheus Postgres exporter
+    ##! Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/postgres_exporter.html
+    ################################################################################
+    # postgres_exporter['enable'] = true
+    # postgres_exporter['home'] = '/var/opt/gitlab/postgres-exporter'
+    # postgres_exporter['log_directory'] = '/var/log/gitlab/postgres-exporter'
+    # postgres_exporter['flags'] = {}
+    # postgres_exporter['listen_address'] = 'localhost:9187'
+    # postgres_exporter['env_directory'] = '/opt/gitlab/etc/postgres-exporter/env'
+    # postgres_exporter['env'] = {
+    #   'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    # }
+    
+    ################################################################################
+    ## Prometheus PgBouncer exporter (EE only)
+    ##! Docs: https://docs.gitlab.com/ee/administration/monitoring/prometheus/pgbouncer_exporter.html
+    ################################################################################
+    # pgbouncer_exporter['enable'] = false
+    # pgbouncer_exporter['log_directory'] = "/var/log/gitlab/pgbouncer-exporter"
+    # pgbouncer_exporter['listen_address'] = 'localhost:9188'
+    # pgbouncer_exporter['env_directory'] = '/opt/gitlab/etc/pgbouncer-exporter/env'
+    # pgbouncer_exporter['env'] = {
+    #   'SSL_CERT_DIR' => "/opt/gitlab/embedded/ssl/certs/"
+    # }
+    
+    ################################################################################
+    ## Prometheus Gitlab monitor
+    ##! Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/gitlab_monitor_exporter.html
+    ################################################################################
+    # gitlab_monitor['enable'] = true
+    # gitlab_monitor['log_directory'] = "/var/log/gitlab/gitlab-monitor"
+    # gitlab_monitor['home'] = "/var/opt/gitlab/gitlab-monitor"
+    
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # gitlab_monitor['listen_address'] = 'localhost'
+    # gitlab_monitor['listen_port'] = '9168'
+    
+    ##! Manage gitlab-monitor sidekiq probes. false by default when Sentinels are
+    ##! found.
+    # gitlab_monitor['probe_sidekiq'] = true
+    
+    # To completely disable prometheus, and all of it's exporters, set to false
+    # prometheus_monitoring['enable'] = true
+    
+    ################################################################################
+    ## Grafana Dashboards
+    ##! Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/#prometheus-as-a-grafana-data-source
+    ################################################################################
+    # grafana['enable'] = true
+    # grafana['log_directory'] = '/var/log/gitlab/grafana'
+    # grafana['home'] = '/var/opt/gitlab/grafana'
+    # grafana['admin_password'] = 'admin'
+    # grafana['allow_user_sign_up'] = false
+    # grafana['gitlab_application_id'] = 'GITLAB_APPLICATION_ID'
+    # grafana['gitlab_secret'] = 'GITLAB_SECRET'
+    # grafana['env_directory'] = '/opt/gitlab/etc/grafana/env'
+    # grafana['allowed_groups'] = []
+    # grafana['gitlab_auth_sign_up'] = true
+    # grafana['env'] = {
+    #   'SSL_CERT_DIR' => "#{node['package']['install-dir']}/embedded/ssl/certs/"
+    # }
+
+    ### Dashboards
+    #
+    # See: http://docs.grafana.org/administration/provisioning/#dashboards
+    #
+    # NOTE: Setting this will override the default.
+    #
+    # grafana['dashboards'] = [
+    #   {
+    #     'name' => 'GitLab Omnibus',
+    #     'orgId' => 1,
+    #     'folder' => 'GitLab Omnibus',
+    #     'type' => 'file',
+    #     'disableDeletion' => true,
+    #     'updateIntervalSeconds' => 600,
+    #     'options' => {
+    #       'path' => '/opt/gitlab/embedded/service/grafana-dashboards',
+    #     }
+    #   }
+    # ]
+
+    ### Datasources
+    #
+    # See: http://docs.grafana.org/administration/provisioning/#example-datasource-config-file
+    #
+    # NOTE: Setting this will override the default.
+    #
+    # grafana['datasources'] = [
+    #   {
+    #     'name' => 'GitLab Omnibus',
+    #     'type' => 'prometheus',
+    #     'access' => 'proxy',
+    #     'url' => 'http://localhost:9090'
+    #   }
+    # ]
+
+    ##! Advanced settings. Should be changed only if absolutely needed.
+    # grafana['http_addr'] = 'localhost'
+    # grafana['http_port'] = 3000
+
+    # EOF

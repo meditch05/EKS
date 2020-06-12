@@ -1,0 +1,44 @@
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: gitlab-ce
+  namespace: infra
+spec:
+  template:
+    metadata:
+      labels:
+        app: gitlab-ce
+    spec:
+      containers:
+      - name: gitlab-ce
+        ports:
+          - containerPort: 22
+            name: ssh
+          - containerPort: 80
+            name: http
+          - containerPort: 443
+            name: https
+        image: gitlab/gitlab-ce:12.1.0-ce.0
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: config
+          mountPath: /etc/gitlab
+        - name: log
+          mountPath: /var/log/gitlab
+        - name: data
+          mountPath: /var/opt/gitlab
+        #command:
+        #- logstash
+        #- -f
+        #- /usr/share/logstash/pipeline/mtwd-accesslog-parse.conf
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: gitlab-ce-config
+      - name: log
+        persistentVolumeClaim:
+          claimName: gitlab-ce-log
+      - name: data
+        persistentVolumeClaim:
+          claimName: gitlab-ce-data
