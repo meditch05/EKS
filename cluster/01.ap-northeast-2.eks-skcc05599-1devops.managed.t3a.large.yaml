@@ -18,7 +18,7 @@ managedNodeGroups:
     labels:
       role: devops
       nodegroup-type: managed
-      ec2-type: t3a.large # t3a.medium = 2/4, t3a.large = 2/8
+      ec2-type: t3a.large   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
     instanceType: t3a.large # t3a.medium = 2/4, t3a.large = 2/8
     # ami: ami-0b18567e6d3b05548 # only for nodeGroups( Unmanaged nodegroup )
     availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
