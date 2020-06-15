@@ -18,7 +18,7 @@ spec:
       hostAliases:
       - ip: 10.102.117.180
         hostnames:
-        - jenkins.mwportal.com
+        - jenkins.ffptest.com
       containers:
       - name: gitlab-ce
         ports:

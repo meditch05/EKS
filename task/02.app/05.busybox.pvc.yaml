@@ -31,6 +31,12 @@ spec:
             mountPath: /var/log/gitlab
           - name: data
             mountPath: /var/opt/gitlab
+          - name: jenkins
+            mountPath: /var/pvc_jenkins_home
+          - name: jenkins-workspace
+            mountPath: /var/pvc_workspace
+          - name: jenkins-maven-repo
+            mountPath: /var/pvc_maven
       volumes:
       - name: config
         persistentVolumeClaim:
@@ -41,3 +47,12 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: gitlab-ce-data
+      - name: jenkins
+        persistentVolumeClaim:
+          claimName: jenkins
+      - name: jenkins-workspace
+        persistentVolumeClaim:
+          claimName: jenkins-workspace
+      - name: jenkins-maven-repo
+        persistentVolumeClaim:
+          claimName: jenkins-maven-repo

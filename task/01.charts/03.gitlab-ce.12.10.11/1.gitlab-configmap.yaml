@@ -11,7 +11,7 @@ metadata:
 data:
   hosts: |-
     127.0.0.1       localhost
-    10.102.117.180  jenkins.mwportal.com
+    # 10.102.117.180  jenkins.mwportal.com
     # EOF
 ---
 apiVersion: v1
