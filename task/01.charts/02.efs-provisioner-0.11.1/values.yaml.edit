@@ -35,7 +35,7 @@ annotations: {}
 efsProvisioner:
   # If specified, use this DNS or IP to connect the EFS
   # dnsName: "my-custom-efs-dns.com"
-  efsFileSystemId: fs-6bd7e30a
+  efsFileSystemId: fs-649baf05
   awsRegion: ap-northeast-2
   path: /efs-pv
   provisionerName: example.com/aws-efs
