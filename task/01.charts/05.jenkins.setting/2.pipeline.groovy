@@ -92,9 +92,9 @@ podTemplate(label: label, cloud: 'kubernetes', serviceAccount: 'jenkins',
 				
 		stage('k8s Update Deployment Image = ${imagetag}') {
 			container('kubectl') {
-				// sh "kubectl delete -f ./kubernetes/deployment.yaml"
+				sh "kubectl delete -f ./kubernetes/deployment.yaml"
 				sh "kubectl apply -f  ./kubernetes/deployment.yaml"
-				sh "kubectl get deploy,pod -n mwportal -l app=swing-tps-res"
+				sh "kubectl get deploy,pod -n infra -l app=restapi"
 				
 				// sh "kubectl apply -f ./kubernetes/service.yaml"  // service.yaml 은 초기 테스트시에 구성해야함 ( 그래야지 ㅡ_ㅡ )
 				// sh "kubectl apply -f ./kubernetes/ingress.yaml"  // ingress.yaml 은 초기 테스트시에 구성해야함 ( 그래야지 ㅡ_ㅡ )
