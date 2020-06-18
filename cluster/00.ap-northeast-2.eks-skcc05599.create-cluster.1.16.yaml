@@ -4,9 +4,9 @@ kind: ClusterConfig
 metadata:
   name: skcc05599
   region: ap-northeast-2
-  version: "1.15"
+  version: "1.16"
 vpc:
-  cidr: 10.5.0.0/16       # Main CIDR : 10.5.0.0 ~ 10.5.255.255
+  cidr: 100.64.0.0/16       # Main CIDR : 100.64.0.0 ~ 100.64.255.255
   clusterEndpoints:
     privateAccess: true
     publicAccess: true
