@@ -6,32 +6,31 @@ metadata:
   region: ap-northeast-2
   version: "1.16"
 vpc:
-  cidr: 10.5.0.0/16       # Main CIDR : 10.5.0.0 ~ 10.5.255.255
+  cidr: 100.64.0.0/16       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
   clusterEndpoints:
     privateAccess: true
     publicAccess: true
 managedNodeGroups:
-  - name: worker-managed
+  - name: worker-node
     tags:
-      nodegroup-name: worker
+      nodegroup-role: worker
       creator: skcc05599
     labels:
       role: worker
       nodegroup-type: managed
-      ec2-type: t3a.small   # t3a.small  = ENI 4 => 3 * 4 - 1 = 11
-    instanceType: t3a.small # t3a.small  = ENI 4 => 3 * 4 - 1 = 11
-    # ami: ami-0b18567e6d3b05548 # only for nodeGroups( Unmanaged nodegroup )
+      ec2-type: t3a.small   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
+    instanceType: t3.small
     availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
-    minSize: 2
-    maxSize: 3
-    desiredCapacity: 2
-    volumeSize: 20
     privateNetworking: true
+    minSize: 2
+    maxSize: 4
+    desiredCapacity: 3
+    volumeSize: 20
     ssh:
       allow: true
     iam:
       withAddonPolicies:
-        efs: true    # CSI Driver
+        ebs: true    # CSI Driver
         autoScaler: true
         cloudWatch: true
         imageBuilder: true

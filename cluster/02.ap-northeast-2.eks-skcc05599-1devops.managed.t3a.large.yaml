@@ -6,12 +6,12 @@ metadata:
   region: ap-northeast-2
   version: "1.16"
 vpc:
-  cidr: 10.5.0.0/16       # Main CIDR : 10.5.0.0 ~ 10.5.255.255
+  cidr: 100.64.0.0/16       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
   clusterEndpoints:
     privateAccess: true
     publicAccess: true
 managedNodeGroups:
-  - name: devops-managed-new
+  - name: devops-node
     tags:
       nodegroup-name: devops
       creator: skcc05599
@@ -19,8 +19,7 @@ managedNodeGroups:
       role: devops
       nodegroup-type: managed
       ec2-type: t3a.large   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
-    instanceType: t3a.large # t3a.medium = 2/4, t3a.large = 2/8
-    # ami: ami-0b18567e6d3b05548 # only for nodeGroups( Unmanaged nodegroup )
+    instanceType: t3a.large
     availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
     minSize: 1 
     maxSize: 2
