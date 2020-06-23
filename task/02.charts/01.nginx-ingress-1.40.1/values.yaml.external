@@ -53,7 +53,7 @@ controller:
 
   ## Use host ports 80 and 443
   daemonset:
-    useHostPort: false
+    useHostPort: true
 
     hostPorts:
       http: 80
@@ -66,7 +66,7 @@ controller:
 
   ## Election ID to use for status update
   ##
-  electionID: ingress-controller-leader
+  electionID: ingress-controller-leader-external
 
   ## Name of the ingress class to route through this controller
   ##
@@ -131,7 +131,7 @@ controller:
 
   ## DaemonSet or Deployment
   ##
-  kind: Deployment
+  kind: DaemonSet
 
   ## Annotations to be added to the controller deployment
   ##
@@ -244,7 +244,9 @@ controller:
   service:
     enabled: true
 
-    annotations: {}
+    # default Loadbalancer = clb
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
     labels: {}
     ## Deprecated, instead simply do not provide a clusterIP value
     omitClusterIP: false
@@ -293,6 +295,12 @@ controller:
       https: ""
       tcp: {}
       udp: {}
+
+    ## Enables an additional internal load balancer (besides the external one).
+    ## Annotations are mandatory for the load balancer to come up. Varies with the cloud service.
+    internal:
+      enabled: false
+      annotations: {}
 
   extraContainers: []
   ## Additional containers to be added to the controller pod.
@@ -361,6 +369,7 @@ controller:
       priorityClassName: ""
       podAnnotations: {}
       nodeSelector: {}
+      resources: {}
 
   metrics:
     port: 10254

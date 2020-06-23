@@ -6,6 +6,7 @@ sudo ./get_helm.sh
 helm version
 
 helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm search repo stable
 helm repo update
 
@@ -13,7 +14,9 @@ helm search repo stable/nginx-ingress
 
 mkdir charts
 cd charts
-helm fetch stable/nginx-ingress 
+helm fetch stable/nginx-ingress --version v1.40.1
+
+
 tar -zxvf nginx-ingress*.tgz
 cp nginx-ingress/values.yaml  nginx-ingress/values.yaml.edit
 

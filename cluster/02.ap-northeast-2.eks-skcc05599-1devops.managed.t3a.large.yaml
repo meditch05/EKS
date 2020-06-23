@@ -6,7 +6,7 @@ metadata:
   region: ap-northeast-2
   version: "1.16"
 vpc:
-  cidr: 100.64.0.0/16       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
+  cidr: 100.64.0.0/21       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
   clusterEndpoints:
     privateAccess: true
     publicAccess: true

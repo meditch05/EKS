@@ -1,8 +1,8 @@
 #!/bin/bash
 
 export EKS_CLUSTER=skcc05599
-export VPC_ID=$(eksctl utils describe-stacks --region=ap-northeast-2 --cluster=${EKS_CLUSTER} | grep OutputValue | grep vpc | cut -d"\"" -f2)
 export SUB_CIDR="128.0.0.0/16"
+export VPC_ID=$(eksctl utils describe-stacks --region=ap-northeast-2 --cluster=${EKS_CLUSTER} | grep OutputValue | grep vpc | cut -d"\"" -f2)
 
 aws ec2 associate-vpc-cidr-block --vpc-id ${VPC_ID} --cidr-block ${SUB_CIDR}
 
