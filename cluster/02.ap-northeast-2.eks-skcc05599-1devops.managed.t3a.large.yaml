@@ -31,6 +31,7 @@ managedNodeGroups:
     iam:
       withAddonPolicies:
         ebs: true    # CSI Driver
+        efs: true    # CSI Driver
         autoScaler: true
         cloudWatch: true
         imageBuilder: true

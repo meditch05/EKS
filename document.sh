@@ -602,7 +602,7 @@
 2. 구성 확인
 	# kc get ing,svc,pod -n test -o wide
 	NAME                              HOSTS         ADDRESS                    PORTS   AGE
-	ingress.extensions/apple-banana   ffptest.com   10.5.115.27,10.5.188.123   80      147m
+	ingress.extensions/apple-banana   tbiz-atcl.net   10.5.115.27,10.5.188.123   80      147m
 	
 	NAME                     TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
 	service/apple-service    ClusterIP   172.20.154.71    <none>        5678/TCP   148m
@@ -634,11 +634,11 @@
 	Address: 52.78.117.206
 	Address: 52.79.203.186
 	
-	# curl -H "Host: ffptest.com" http://52.79.203.186/apple
-	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	# curl -H "Host: tbiz-atcl.net" http://52.79.203.186/apple
+	<html><header><title>Apple</title></header><body>tbiz-atcl.net/apple</body></html>
 	
-	# curl -H "Host: ffptest.com" http://52.78.117.206/apple
-	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	# curl -H "Host: tbiz-atcl.net" http://52.78.117.206/apple
+	<html><header><title>Apple</title></header><body>tbiz-atcl.net/apple</body></html>
 	
 	=> NLB 통해서 호출하면 될때 / 안될때가 갈린다.
 	
@@ -650,9 +650,9 @@
 	Address: 52.79.68.159
 	Address: 13.125.88.199
 	
-	# curl -H "Host: ffptest.com" http://52.78.113.11/apple
-	# curl -H "Host: ffptest.com" http://52.79.68.159/apple
-	# curl -H "Host: ffptest.com" http://13.125.88.199/apple
+	# curl -H "Host: tbiz-atcl.net" http://52.78.113.11/apple
+	# curl -H "Host: tbiz-atcl.net" http://52.79.68.159/apple
+	# curl -H "Host: tbiz-atcl.net" http://13.125.88.199/apple
 ################################################
 [ Dual CIDR 미 사용시 ]  => NLB 통해서 Ingress 호출하면 들어간 nginx-controller와 다른 EC2로도 잘 넘어가서 잘 됨
 ################################################
@@ -662,11 +662,11 @@
 	Address: 15.165.128.183
 	Address: 15.164.56.232
 	
-	# curl -H "Host: ffptest.com" http://15.165.128.183/apple
-	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	# curl -H "Host: tbiz-atcl.net" http://15.165.128.183/apple
+	<html><header><title>Apple</title></header><body>tbiz-atcl.net/apple</body></html>
 	
-	# curl -H "Host: ffptest.com" http://15.164.56.232/apple
-	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	# curl -H "Host: tbiz-atcl.net" http://15.164.56.232/apple
+	<html><header><title>Apple</title></header><body>tbiz-atcl.net/apple</body></html>
 	
 	
 	[ BUSYBOX에서 NGINX SVC를 찔러봐 ]
@@ -681,8 +681,8 @@
 	Address:        10.16.0.2#53
 	Address: 15.165.128.183
 	
-	# curl -H "Host: ffptest.com" http://15.165.128.183/apple
-	<html><header><title>Apple</title></header><body>ffptest.com/apple</body></html>
+	# curl -H "Host: tbiz-atcl.net" http://15.165.128.183/apple
+	<html><header><title>Apple</title></header><body>tbiz-atcl.net/apple</body></html>
 	=> NLB 통해서 호출하면 될때 / 안될때가 갈린다.
 	=> NLB 관련해서 뭔가 있는거 같은데... 
 	
@@ -696,8 +696,8 @@
 	=> wget                              http://172.20.91.45:5678/banana ; cat banana; rm -rf banana
 	
 	# busybox					에서 nginx-ingress-controller svc 호출 ( OK )
-	=> wget --header 'Host: ffptest.com' http://172.20.30.191/apple ; cat apple ; rm -rf apple
-	=> wget --header 'Host: ffptest.com' http://172.20.30.191/banana; cat banana; rm -rf banana
+	=> wget --header 'Host: tbiz-atcl.net' http://172.20.30.191/apple ; cat apple ; rm -rf apple
+	=> wget --header 'Host: tbiz-atcl.net' http://172.20.30.191/banana; cat banana; rm -rf banana
 	
 	
 	# nginx-ingress-controller 2개 POD 에서 appl pod 호출 ( OK )
@@ -709,8 +709,8 @@
 	=> wget                              http://172.20.91.45:5678/banana ; cat banana; rm -rf banana
 	
 	# nginx-ingress-controller	에서 nginx-ingress-controller svc 호출 ( OK )
-	=> wget --header 'Host: ffptest.com' http://172.20.30.191/apple ; cat apple ; rm -rf apple
-	=> wget --header 'Host: ffptest.com' http://172.20.30.191/banana; cat banana; rm -rf banana
+	=> wget --header 'Host: tbiz-atcl.net' http://172.20.30.191/apple ; cat apple ; rm -rf apple
+	=> wget --header 'Host: tbiz-atcl.net' http://172.20.30.191/banana; cat banana; rm -rf banana
 	
 	
 	
@@ -728,54 +728,56 @@
 #######################################################################################
 # EKS에 GitLab + Jenkins + EFS Provisioner 구성
 #######################################################################################
+[ 2020-07-28 OJT ]
+
+# git clone https://github.com/meditch05/EKS.git
 
 ################################################
 # [ EFS 볼륨 생성 ]
 ################################################
-1. EKS Cluster 의 VPC 를 사용하도록 생성
-	=> AZ 3개에 Main CIDR 대역으로 3개의 IP를 사용하게됨
-	=> EFS의 DNS Name 확인 : fs-39c6f358.efs.ap-northeast-2.amazonaws.com
-   
-2. Security Group 변경 ( default로 하면 EFS Provisionner에서 EFS 볼륨 사용못하니, EKS Cluster의 Security Group을 지정해야함. )
-	=> sg-05abc447a66a03a33 - eks-cluster-sg-skcc05599-647076920
-   
+1. EFS -> Create FileSystem
+   - Name : skcc05599
+   - VPC  : eksctl-skcc05599-cluster/VPC   
+2. EFS -> Create FileSystem -> Customize -> Next
+3. Mount Targtes -> Security groups ( default로 하면 EFS Provisionner에서 EFS 볼륨 사용못하니, EKS Cluster의 Security Group을 지정해야함. )
+   - ap-northeast-2a : eks-cluster-sg-skcc-05599-647076920
+   - ap-northeast-2c : eks-cluster-sg-skcc-05599-647076920
+4. Next -> Next
+
    
 [ EFS Provisioner 생성 ]
-# helm search repo stable/efs-provisioner
-# cd ~/EKS/cluster/HELM3/charts 
-# helm fetch  stable/efs-provisioner
-# tar -xvf efs-provisioner-0.11.1.tgz
-# cd efs-provisioner
-# diff values.yaml.edit values.yaml.ori
+# cd ~/EKS/task/02.charts/02.efs-provisioner-0.13.0
+# diff values.yaml.ori values.yaml.edit
 9c9
-<   deployEnv: prd
+<   deployEnv: dev
 ---
->   deployEnv: dev
-38,40c38,40
-<   efsFileSystemId: fs-39c6f358
-<   awsRegion: ap-northeast-2
-<   path: /efs-pv
+>   deployEnv: prd
+43,46c43,46
+<   efsFileSystemId: fs-12345678
+<   awsRegion: us-east-2
+<   path: /example-pv
+<   provisionerName: example.com/aws-efs
 ---
->   efsFileSystemId: fs-12345678
->   awsRegion: us-east-2
->   path: /example-pv
-44c44
-<     isDefault: true
+>   efsFileSystemId: fs-fdc7ff9c
+>   awsRegion: ap-northeast-2
+>   path: /eks-pv
+>   provisionerName: tbiz-actl.net/aws-efs
+54c54
+<     reclaimPolicy: Delete
 ---
->     isDefault: false
-49c49
-<     reclaimPolicy: Retain
----
->     reclaimPolicy: Delete
-79,80c79
-< nodeSelector:
-<   role: devops
----
-> nodeSelector: {}
-# kc create ns infra
-# helm install efs-provisioner --namespace infra -f values.yaml.edit stable/efs-provisioner --version v0.11.1
-....
+>     reclaimPolicy: Retain
+
+
+# helm install efs-provisioner --namespace infra -f values.yaml.edit stable/efs-provisioner --version v0.13.0
+NAME: efs-provisioner
+LAST DEPLOYED: Tue Jul 28 13:21:32 2020
+NAMESPACE: infra
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
 You can provision an EFS-backed persistent volume with a persistent volume claim like below:
+
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -790,51 +792,79 @@ spec:
     requests:
       storage: 1Mi
 
+# kc get sc -n infra
+NAME            PROVISIONER             AGE
+aws-efs         tbiz-actl.net/aws-efs   5m15s
+gp2 (default)   kubernetes.io/aws-ebs   2d5h
+
 
 ################################################
 # [ GITLAB 구성 ] => Helm gitlab/gitlab은 너무 무겁고, Sub-Pack 들이 많이 뜨니, Docker 버전을 Deployment로 띄우자
 ################################################
-# cd ~/EKS/task/01.charts/03.gitlab-ce.12.10.11
+# cd ~/EKS/task/02.charts/03.gitlab-ce.12.10.11
 # kubectl apply -f 1.gitlab-configmap.yaml
 # kubectl apply -f 2.gitlab-pvc-svc-ingress.yaml
 # kubectl apply -f 3.deploy.gitlab-ce.yaml
 
 
 ################################################
-# [ Jenkins 구성 ] => helm v2.0.1
+# [ Jenkins 구성 ] => helm v2.3.0
 ################################################
-# helm search repo stable/jenkins --version v2.0.1
-# helm fetch stable/jenkins --version v2.0.1
-# tar -xvf jenkins-2.0.1.tgz
-# diff values.yaml.edit values.yaml.ori
-104c104
-<   adminPassword: "패스워드"
----
->   # adminPassword: <defaults to random>
-374c374
-<     enabled: true
----
->     enabled: false
-394c394
-<     hostName: jenkins.ffptest.com
----
->     hostName:
-422,425c422,425
-<   hostAliases:
-<    - ip: 172.20.112.181
-<      hostnames:
-<        - gitlab.ffptest.com
----
->   hostAliases: []
->   # - ip: 192.168.50.50
->   #   hostnames:
->   #     - something.local
-598c598
-<   storageClass: aws-efs
----
->   storageClass:
+# helm search repo stable/jenkins --version v2.3.0
+# helm fetch stable/jenkins --version v2.3.0
+# tar -xvf jenkins-2.3.0.tgz
 
-# helm install jenkins -n infra -f values.yaml.edit stable/jenkins --version v2.0.1
+# diff values.yaml.ori values.yaml.edit
+122c122
+<       memory: "256Mi"
+---
+>       memory: "1024Mi"
+376c376
+<     enabled: false
+---
+>     enabled: true
+390,391c390,391
+<     annotations: {}
+<     # kubernetes.io/ingress.class: nginx
+---
+>     annotations:
+>       kubernetes.io/ingress.class: nginx
+394c394
+<     # path: "/jenkins"
+---
+>       path: "/"
+396c396
+<     hostName:
+---
+>     hostName: jenkins.tbiz-atcl.net
+602c602
+<   storageClass:
+---
+>   storageClass: aws-efs
+
+# helm install jenkins -n infra -f values.yaml.edit stable/jenkins --version 2.3.0
+NAME: jenkins
+LAST DEPLOYED: Tue Jul 28 14:35:38 2020
+NAMESPACE: infra
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get your 'admin' user password by running:
+  printf $(kubectl get secret --namespace infra jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 --decode);echo
+
+2. Visit http://jenkins.tbiz-atcl.net
+
+3. Login with the password from step 1 and the username: admin
+
+4. Use Jenkins Configuration as Code by specifying configScripts in your values.yaml file, see documentation: http://jenkins.tbiz-atcl.net/configuration-as-code and examples: https://github.com/jenkinsci/configuration-as-code-plugin/tree/master/demos
+
+For more information on running Jenkins on Kubernetes, visit:
+https://cloud.google.com/solutions/jenkins-on-container-engine
+For more information about Jenkins Configuration as Code, visit:
+https://jenkins.io/projects/jcasc/
+
+
+
 
 
 ################################################
@@ -855,173 +885,16 @@ spec:
 ################################################
 
 1. /etc/hosts 에 Domain 추가
-	3.34.173.12 gitlab.ffptest.com
-	3.34.173.12 jenkins.ffptest.com
-	3.34.173.12 ffptest.com
+	3.34.173.12 gitlab.tbiz-atcl.net
+	3.34.173.12 jenkins.tbiz-atcl.net
+	3.34.173.12 tbiz-atcl.net
 	
 2. Rest API 호출
 	# while true
 	# do
-	#    curl http://ffptest.com/api/get/salary/10001 | jq .
+	#    curl http://tbiz-atcl.net/api/get/salary/10001 | jq .
 	#    sleep 1
 	# done
 	
 	
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-	
-	
-	
-##############################################################################	
-# GITLAB Helm 버전 ( gitlab/gitlab ) => 너무 무거워 t3a.medium 으로는 띄우기도 버거움
-##############################################################################
-[ GitLab 구성 ]
-# helm repo add gitlab https://charts.gitlab.io/
-# helm repo update
-# helm search repo gitlab
-# helm fetch gitlab/gitlab
-# tar -xvf gitlab*.tgz
-# cd gitlab
-# vi  storageClass.yaml
-  gitaly:
-    persistence:
-      storageClass: aws-efs
-      size: 50Gi
-postgresql:
-  persistence:
-    storageClass: aws-efs
-    size: 8Gi
-minio:
-  persistence:
-    storageClass: aws-efs
-    size: 10Gi
-redis:
-  master:
-    persistence:
-      storageClass: aws-efs
-      size: 5Gi
-	  
-# kubectl create secret generic custom-gitlab-ca -n infra
-# diff values.yaml.edit values.yaml.ori
-31c31
-<   edition: ce
----
->   edition: ee
-43c43
-<     domain: gitlab.ffptest.com
----
->     domain: example.com
-45c45
-<     https: false
----
->     https: true
-55c55
-<     configureCertmanager: false
----
->     configureCertmanager: true
-57c57
-<     enabled: false
----
->     enabled: true
-404c404
-<   time_zone: Seoul
----
->   time_zone: UTC
-452c452
-<   enabled: false
----
->   enabled: true
-474c474
-<   createCustomResource: false
----
->   createCustomResource: true
-478c478
-<   install: false
----
->   install: true
-490c490
-<   enabled: false
----
->   enabled: true
-538c538
-<   install: false
----
->   install: true
-558c558
-<   install: false
----
->   install: true
-573c573
-<   install: false
----
->   install: true
-596c596
-<   enabled: false
----
->   enabled: true
-603c603
-<   install: false
----
->   install: true
-# helm install gitlab --namespace infra -f values.yaml.edit -f storageClass.yaml gitlab/gitlab
-		# helm uninstall gitlab --namespace infra
-		# kc get secret -n infra | egrep "^gitlab"               | awk '{print $1}' | xargs kubectl delete -n infra secret
-		# kc get cm     -n infra | egrep "^gitlab|^cert-manager" | awk '{print $1}' | xargs kubectl delete -n infra cm 
-※ PVC가 필요한 내부 Package
-	- Gitaly (persists the Git repositories)
-	- PostgreSQL (persists the GitLab database data)
-	- Redis (persists GitLab job data)
-	- MinIO (persists the object storage data)

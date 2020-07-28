@@ -24,13 +24,14 @@ managedNodeGroups:
     privateNetworking: true
     minSize: 2
     maxSize: 4
-    desiredCapacity: 3
+    desiredCapacity: 2
     volumeSize: 20
     ssh:
       allow: true
     iam:
       withAddonPolicies:
         ebs: true    # CSI Driver
+        efs: true    # CSI Driver
         autoScaler: true
         cloudWatch: true
         imageBuilder: true

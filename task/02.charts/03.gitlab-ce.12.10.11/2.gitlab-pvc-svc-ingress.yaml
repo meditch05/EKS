@@ -42,34 +42,6 @@ spec:
     requests:
       storage: 5Gi
 ---
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: jenkins-workspace
-  namespace: infra
-  annotations:
-    volume.beta.kubernetes.io/storage-class: aws-efs
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: jenkins-maven-repo
-  namespace: infra
-  annotations:
-    volume.beta.kubernetes.io/storage-class: aws-efs
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
----
 kind: Service
 apiVersion: v1
 metadata:
@@ -106,7 +78,7 @@ metadata:
   namespace: infra
 spec:
   rules:
-  - host: gitlab.ffptest.com
+  - host: gitlab.tbiz-atcl.net
     http:
       paths:
       - backend:
