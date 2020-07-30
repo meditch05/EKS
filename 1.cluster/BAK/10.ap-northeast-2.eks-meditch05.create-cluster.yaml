@@ -1,0 +1,12 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: meditch05
+  region: ap-northeast-2
+  version: "1.16"
+vpc:
+  cidr: 10.50.0.0/16       # Main CIDR : 10.5.0.0 ~ 10.5.255.255
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true

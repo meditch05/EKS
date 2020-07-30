@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: banana-app
+  namespace: test
+  labels:
+    app: banana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: banana
+  template:
+    metadata:
+      labels:
+        app: banana
+    spec:
+      containers:
+      - name: banana-app
+        image: hashicorp/http-echo
+        args:
+        - "-text=banana"
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: banana-service
+  namespace: test
+spec:
+  selector:
+    app: banana
+  ports:
+    - port: 5678 # Default port for image

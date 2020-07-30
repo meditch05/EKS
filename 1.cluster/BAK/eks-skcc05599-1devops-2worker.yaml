@@ -1,0 +1,59 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: skcc05599
+  region: ap-northeast-2
+  version: "1.16"
+vpc:
+  cidr: 10.5.0.0/16       # Main CIDR : 10.5.0.0 ~ 10.5.255.255
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+managedNodeGroups:
+  - name: devops
+    tags:
+      nodegroup-name: devops
+      creator: skcc05599
+    labels:
+      role: devops
+      nodegroup-type: managed
+      ec2-type: t3a.medium   # t3.micro = Noly 1 POD
+    instanceType: t3a.medium # t3.micro = Noly 1 POD
+    availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
+    minSize: 1 
+    maxSize: 2
+    desiredCapacity: 1
+    volumeSize: 40
+    privateNetworking: true
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        ebs: true    # CSI Driver
+        autoScaler: true
+        cloudWatch: true
+        imageBuilder: true
+  - name: worker
+    tags:
+      nodegroup-name: worker
+      creator: skcc05599
+    labels:
+      role: worker
+      nodegroup-type: worker
+      ec2-type: t3a.small   # t3.micro = Noly 1 POD
+    instanceType: t3a.small # t3.micro = Noly 1 POD
+    availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
+    minSize: 2
+    maxSize: 3
+    desiredCapacity: 2
+    volumeSize: 20
+    privateNetworking: true
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        efs: true    # CSI Driver
+        autoScaler: true
+        cloudWatch: true
+        imageBuilder: true

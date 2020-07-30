@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: guestbook-example
+  namespace: test
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    #nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    #nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    #nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: a8090c1394a604336ac634a4f5e9086d-5d66622ad70e8093.elb.ap-northeast-2.amazonaws.com
+    http:
+      paths:
+        - path: /
+          backend:
+            serviceName: guestbook
+            servicePort: 3000
