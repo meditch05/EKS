@@ -144,7 +144,6 @@ For more information about Jenkins Configuration as Code, visit:
 https://jenkins.io/projects/jcasc/
 
 
-
 ################################################
 # [ EKS에 sa/jenkins 에 cluster-admin 권한 부여 ]
 ################################################
@@ -152,16 +151,33 @@ https://jenkins.io/projects/jcasc/
 # kubectl apply -f 1.ClusteRoleBinding.yaml
 
 ################################################
+# [ Github 프로젝트 만들기 ]
+################################################
+1. 각자의 Github에 Login / Repository 생성 ( restapi_rds_select )
+
+# cd ~
+# mkdir git
+# My_Repo="EX> https://github.com/skcc05599/restapi.git"
+# git clone ${My_Repo}
+# git clone https://github.com/meditch05/restapi_rds_select.git
+# cd ${My_Repo}
+# cp -R ../restapi_rds_select/*          .
+# cp -R ../restapi_rds_select/.gitignore .
+# git add *
+# git add .gitignore
+# git commit -m "clone"
+# git push
+
+################################################
 # [ Jenkins Pipeline 구성 ]
 ################################################
-# cat ~EKS/task/01.charts/05.cicd.sample
-참고해서 Jenkins Console에서 구성할 것
+1. http://jenkins.tbiz-atcl.net
+# cat ~/EKS/2.task/2.CHART/05.jenkins.setting/2.Jenkinsfile
 
 
 ################################################
 # [ Test용 RestAPI 호출 방법 ]
 ################################################
-
 1. /etc/hosts 에 Domain 추가
 	3.34.173.12 gitlab.tbiz-atcl.net
 	3.34.173.12 jenkins.tbiz-atcl.net
