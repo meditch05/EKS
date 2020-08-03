@@ -2,6 +2,20 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
+  name: jenkins
+  namespace: infra
+  annotations:
+    volume.beta.kubernetes.io/storage-class: aws-efs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
   name: jenkins-workspace
   namespace: infra
   annotations:

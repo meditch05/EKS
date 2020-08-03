@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-worker
+  namespace: infra
+  labels:
+    app: busybox-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: busybox
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: busybox
+        image: busybox:latest
+        imagePullPolicy: Always # IfNotPresent
+        command:
+          - tail
+          - -f
+          - /dev/null

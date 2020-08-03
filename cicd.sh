@@ -17,6 +17,7 @@
 3. Mount Targtes -> Security groups ( default로 하면 EFS Provisionner에서 EFS 볼륨 사용못하니, EKS Cluster의 Security Group을 지정해야함. )
    - ap-northeast-2a : eks-cluster-sg-skcc-05599-647076920
    - ap-northeast-2c : eks-cluster-sg-skcc-05599-647076920
+   > FileSystem ID : fs-fdc8fa9d
 
 4. Next -> Next
    
@@ -33,7 +34,7 @@
 <   path: /example-pv
 <   provisionerName: example.com/aws-efs
 ---
->   efsFileSystemId: fs-fdc7ff9c
+>   efsFileSystemId: fs-fdc8fa9d
 >   awsRegion: ap-northeast-2
 >   path: /eks-pv
 >   provisionerName: tbiz-actl.net/aws-efs
@@ -83,13 +84,14 @@ gp2 (default)   kubernetes.io/aws-ebs   2d5h
 
 
 ################################################
-# [ Jenkins 구성 ] => helm v2.3.0
+# [ Jenkins 구성 ] => helm v2.3.3
 ################################################
-## helm search repo stable/jenkins --version v2.3.0
-## helm fetch stable/jenkins --version v2.3.0
+## helm search repo stable/jenkins --version 2.3.3
+## helm fetch stable/jenkins --version 2.3.3
 ## tar -xvf jenkins-2.3.0.tgz
 
-# cd ~/EKS/2.task/2.CHART/04.jenkins-2.3.0
+# cd ~/EKS/2.task/2.CHART/4.jenkins-2.3.3
+# kubectl apply -f 1.pvc.yaml
 # diff values.yaml.ori values.yaml.edit
 104c104
 <   # adminPassword: <defaults to random>
@@ -99,6 +101,10 @@ gp2 (default)   kubernetes.io/aws-ebs   2d5h
 <       memory: "256Mi"
 ---
 >       memory: "1024Mi"
+242c242
+<   overwritePluginsFromImage: true
+---
+>   master.overwritePluginsFromImage: true
 376c376
 <     enabled: false
 ---
@@ -117,12 +123,12 @@ gp2 (default)   kubernetes.io/aws-ebs   2d5h
 <     hostName:
 ---
 >     hostName: jenkins.tbiz-atcl.net
-602c602
-<   storageClass:
+594c594
+<   existingClaim:
 ---
->   storageClass: aws-efs
+>   existingClaim: "jenkins"
 
-# helm install jenkins -n infra -f values.yaml.edit stable/jenkins --version 2.3.0
+# helm install jenkins -n infra -f values.yaml.edit stable/jenkins --version 2.3.3
 NAME: jenkins
 LAST DEPLOYED: Tue Jul 28 14:35:38 2020
 NAMESPACE: infra
@@ -147,8 +153,8 @@ https://jenkins.io/projects/jcasc/
 ################################################
 # [ EKS에 sa/jenkins 에 cluster-admin 권한 부여 ]
 ################################################
-# cd ~EKS/task/01.charts/05.cicd.sample
-# kubectl apply -f 1.ClusteRoleBinding.yaml
+# cd ~/EKS/2.task/2.CHART/4.jenkins-2.3.3
+# kubectl apply -f 3.set.ClusteRoleBinding.yaml
 
 ################################################
 # [ Github 프로젝트 만들기 ]
@@ -189,6 +195,110 @@ https://jenkins.io/projects/jcasc/
 	#    curl http://tbiz-atcl.net/api/get/salary/10001 | jq .
 	#    sleep 1
 	# done
+
+
+-------------------- Merge 해라 ------------------------
+
+
+###############################################################################
+[ ECR 생성 ]
+###############################################################################
+1. ECR 생성
+2. ECR 프로젝트 생성
+   - restapi
+   - bff-atcl
+3. 각 프로젝트에 Permission 설정
+   - ECR > Repositories > bff-atcl > Permissions > Edit poicy JSON
+   
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowPushPull",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ]
+    }
+  ]
+}
+
+###############################################################################
+[ EFS-Provisioner 구성 ( EKS + Helm ) ]
+###############################################################################
+
+
+
+###############################################################################
+[ Jenkins 구성 ( EKS + Helm ) ]
+###############################################################################
+
+
+
+###############################################################################
+[ GITHUB 준비 ]
+###############################################################################
+0. 준비 ( Bastion 서버 )
+   # mkdir ~/git
+   # cd ~/git
+
+1. Sample Git 가져오기
+   # git clone https://github.com/meditch05/restapi_rds_select.git
+   # git clone https://github.com/meditch05/bff_atcl.git
+   
+2. 각자의 Git 프로젝트 생성 ( github 로그인 )
+   - restapi_rds_select_skcc05599
+   - bff_atcl_skcc05599
+   
+3. 각자의 Git 프로젝트 가져오기
+   # git clone https://github.com/skcc05599/restapi_rds_select_skcc05599.git
+   # git clone https://github.com/skcc05599/bff_atcl_skcc05599.git
+   
+4. Sample 소스를 각자의 프로젝트에 Copy
+   # cp -Rp ./restapi_rds_select/*          restapi_rds_select_skcc05599
+   # cp -Rp ./restapi_rds_select/.gitignore restapi_rds_select_skcc05599
+   # cp -Rp ./bff_atcl/*                    bff_atcl_skcc05599
+   # cp -Rp ./bff_atcl/.gitignore           bff_atcl_skcc05599
+
+5. 각자의 프로젝트에 소스 Push
+   # cd ~/git/restapi_rds_select_skcc05599
+   # git add *
+   # git add .gitignore
+   # git commit -m init
+   # git push
+   
+   # cd ~/git/restapi_rds_select_skcc05599
+   # git add *
+   # git add .gitignore
+   # git commit -m init
+   # git push
+   
+   
+###############################################################################
+[ Eclipse 프로젝트 생성 ( Git repository Clone > 프로젝트 생성 ]
+###############################################################################
+   
+1. Eclipse -> 프로젝트 선택 -> Congifure -> Convert to Maven Project 
+
+
+
+
+###############################################################################
+[ 서비스 호출 ]
+###############################################################################
+
+1. RestAPI 호출
+   http://api.tbiz-atcl.net/get/salary/10051
+   
+2. Web 화면 호출 ( WEB에서 RestAPI 호출한걸 JSP 통해서 WEB 화면으로 View )
+   http://bff.tbiz-atcl.net/view/select/10051
 	
 	
 

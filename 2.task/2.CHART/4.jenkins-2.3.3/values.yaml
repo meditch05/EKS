@@ -101,7 +101,7 @@ master:
   # If you disable the non-Jenkins identity store and instead use the Jenkins internal one,
   # you should revert master.adminUser to your preferred admin user:
   adminUser: "admin"
-  adminPassword: "alskfl12~!"
+  # adminPassword: <defaults to random>
   admin:
     existingSecret: ""
     userKey: jenkins-admin-user
@@ -119,7 +119,7 @@ master:
   resources:
     requests:
       cpu: "50m"
-      memory: "1024Mi"
+      memory: "256Mi"
     limits:
       cpu: "2000m"
       memory: "4096Mi"
@@ -239,7 +239,7 @@ master:
   # overwritePlugins: true
 
   # Configures if plugins bundled with `master.image` should be overwritten with the values of 'master.installPlugins' on upgrade or redeployment.
-  master.overwritePluginsFromImage: true
+  overwritePluginsFromImage: true
 
   # Enable HTML parsing using OWASP Markup Formatter Plugin (antisamy-markup-formatter), useful with ghprb plugin.
   # The plugin is not installed by default, please update master.installPlugins.
@@ -373,7 +373,7 @@ master:
   overwriteJobs: false
 
   ingress:
-    enabled: true
+    enabled: false
     # Override for the default paths that map requests to the backend
     paths: []
     # - backend:
@@ -387,13 +387,13 @@ master:
     # For Kubernetes v1.14+, use 'networking.k8s.io/v1beta1'
     apiVersion: "extensions/v1beta1"
     labels: {}
-    annotations:
-      kubernetes.io/ingress.class: nginx
+    annotations: {}
+    # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
     # Set this path to jenkinsUriPrefix above or use annotations to rewrite path
-      path: "/"
+    # path: "/jenkins"
     # configures the hostname e.g. jenkins.example.com
-    hostName: jenkins.tbiz-atcl.net
+    hostName:
     tls:
     # - secretName: jenkins.cluster.local
     #   hosts:
@@ -599,7 +599,7 @@ persistence:
   ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
   ##   GKE, AWS & OpenStack)
   ##
-  storageClass: aws-efs
+  storageClass:
   annotations: {}
   accessMode: "ReadWriteOnce"
   size: "8Gi"
