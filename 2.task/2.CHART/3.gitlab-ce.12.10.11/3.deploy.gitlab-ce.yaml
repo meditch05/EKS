@@ -15,10 +15,11 @@ spec:
       labels:
         app: gitlab-ce
     spec:
-      hostAliases:
-      - ip: 10.102.117.180
-        hostnames:
-        - jenkins.ffptest.com
+      #hostAliases:
+      #- ip: 10.102.117.180
+      #  hostnames:
+      #  - jenkins.ffptest.com
+      #hostname: gitlab.tbiz-atcl.net
       containers:
       - name: gitlab-ce
         ports:

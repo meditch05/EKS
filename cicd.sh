@@ -1,12 +1,47 @@
 #######################################################################################
-# EKS에 GitLab + Jenkins + EFS Provisioner 구성
+# 앞에서 엄준식 수석이 진행한 Part에서 EKS 생성 + Nginx Igress 구성까지 진행하고 들어오세요.
 #######################################################################################
-[ 2020-07-28 OJT ]
 
+#######################################################################################
+# EKS + CI/CD 실습 Script 가져오기
+#######################################################################################
+[ 2020-08-03 실습 자료 ]
+# cd ~
 # git clone https://github.com/meditch05/EKS.git
 
+###############################################################################
+[ ECR 생성 ]
+###############################################################################
+1. ECR 생성
+2. ECR 프로젝트 생성
+   - restapi
+   - bff-atcl
+3. 각 프로젝트에 Permission 설정
+   - ECR > Repositories > restapi  > Permissions > Edit poicy JSON
+   - ECR > Repositories > bff-atcl > Permissions > Edit poicy JSON
+
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowPushPull",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ]
+    }
+  ]
+}
+
 ################################################
-# [ EFS 볼륨 생성 ]
+# AWS - EFS 생성
 ################################################
 1. EFS -> Create FileSystem
    - Name : skcc05599
@@ -20,9 +55,11 @@
    > FileSystem ID : fs-fdc8fa9d
 
 4. Next -> Next
-   
-[ EFS Provisioner 생성 ]
-# cd ~/EKS/2.task/2.CHARTS/02.efs-provisioner-0.13.0
+    
+################################################
+# EKS - EFS Provisioner 생성
+################################################
+# cd ~/EKS/2.task/2.CHART/2.efs-provisioner-0.13.0
 # diff values.yaml.ori values.yaml.edit
 9c9
 <   deployEnv: dev
@@ -42,7 +79,6 @@
 <     reclaimPolicy: Delete
 ---
 >     reclaimPolicy: Retain
-
 
 # helm install efs-provisioner --namespace infra -f values.yaml.edit stable/efs-provisioner --version v0.13.0
 NAME: efs-provisioner
@@ -68,31 +104,18 @@ spec:
     requests:
       storage: 1Mi
 
-# kc get sc -n infra
+# kubectl get sc -n infra
 NAME            PROVISIONER             AGE
 aws-efs         tbiz-actl.net/aws-efs   5m15s
 gp2 (default)   kubernetes.io/aws-ebs   2d5h
 
 
 ################################################
-# [ GITLAB 구성 ] => Helm gitlab/gitlab은 너무 무겁고, Sub-Pack 들이 많이 뜨니, Docker 버전을 Deployment로 띄우자
+# Jenkins 구성
 ################################################
-# cd ~/EKS/task/2.CHARTS/03.gitlab-ce.12.10.11
-# kubectl apply -f 1.gitlab-configmap.yaml
-# kubectl apply -f 2.gitlab-pvc-svc-ingress.yaml
-# kubectl apply -f 3.deploy.gitlab-ce.yaml
-
-
-################################################
-# [ Jenkins 구성 ] => helm v2.3.3
-################################################
-## helm search repo stable/jenkins --version 2.3.3
-## helm fetch stable/jenkins --version 2.3.3
-## tar -xvf jenkins-2.3.0.tgz
-
 # cd ~/EKS/2.task/2.CHART/4.jenkins-2.3.3
 # kubectl apply -f 1.pvc.yaml
-# diff values.yaml.ori values.yaml.edit
+# diff values.yaml values.yaml.edit
 104c104
 <   # adminPassword: <defaults to random>
 ---
@@ -151,154 +174,116 @@ https://jenkins.io/projects/jcasc/
 
 
 ################################################
-# [ EKS에 sa/jenkins 에 cluster-admin 권한 부여 ]
+# EKS - ServiceAccount/jenkins 에kubernetes의 cluster-admin 권한 부여
 ################################################
 # cd ~/EKS/2.task/2.CHART/4.jenkins-2.3.3
-# kubectl apply -f 3.set.ClusteRoleBinding.yaml
+# kubectl apply -f 2.set.ClusteRoleBinding.yaml
 
 ################################################
-# [ Github 프로젝트 만들기 ]
+# Github - 프로젝트 만들기
 ################################################
 1. 각자의 Github에 Login / Repository 생성 ( restapi_rds_select )
+2. 각자의 Github에 Login / Repository 생성 ( bff_atcl )
 
+################################################
+# Github - 소스 Mig 하기
+################################################
+[ 샘플 git 프로젝트 가져오기] 
 # cd ~
-# mkdir git
-# My_Repo="EX> https://github.com/skcc05599/restapi.git"
-# git clone ${My_Repo}
+# mkdir git 
 # git clone https://github.com/meditch05/restapi_rds_select.git
-# cd ${My_Repo}
-# cp -R ../restapi_rds_select/*          .
-# cp -R ../restapi_rds_select/.gitignore .
+# git clone https://github.com/meditch05/bff_atcl.git
+# mv restapi_rds_select src1
+# mv bff_atcl           src2
+
+[ 각자git 프로젝트 가져오기] 
+# cd ~/git
+# git clone https://github.com/${github ID}/restapi_rds_select.git
+# cd restapi_rds_select
+# cp -Rp ../src1/*          .
+# cp -Rp ../src1/.gitignore .
 # git add *
 # git add .gitignore
 # git commit -m "clone"
-# git push
+# git push (github ID/PWD 입력)
+
+# cd ~/git
+# git clone https://github.com/${github ID}/bff_atcl.git
+# cd bff_atcl
+# cp -Rp ../src2/*          .
+# cp -Rp ../src2/.gitignore .
+# git add *
+# git add .gitignore
+# git commit -m "clone"
+# git push (github ID/PWD 입력)
 
 ################################################
-# [ Jenkins Pipeline 구성 ]
+# PC에 /etc/hosts 에 NLB IP / Jenkins Domain 추가
 ################################################
-1. http://jenkins.tbiz-atcl.net
-# cat ~/EKS/2.task/2.CHART/05.jenkins.setting/2.Jenkinsfile
+# kubectl get svc -n infra    | grep nginx-ingress-controller
+nginx-ingrexx-external-nginx-ingress-controller        LoadBalancer   10.100.243.3     aff3ee8bdcea0488ca94a6486666cdb1-f01ec2b6dc646cec.elb.ap-northeast-2.amazonaws.com   80:31665/TCP,443:30200/TCP   8d
 
+# nslookup aff3ee8bdcea0488ca94a6486666cdb1-f01ec2b6dc646cec.elb.ap-northeast-2.amazonaws.com
+Server:         10.16.0.2
+Address:        10.16.0.2#53
+
+Non-authoritative answer:
+Name:   aff3ee8bdcea0488ca94a6486666cdb1-f01ec2b6dc646cec.elb.ap-northeast-2.amazonaws.com
+Address: 13.209.220.214
+Name:   aff3ee8bdcea0488ca94a6486666cdb1-f01ec2b6dc646cec.elb.ap-northeast-2.amazonaws.com
+Address: 3.35.28.184
+
+1. PC에 hosts 파일 관리자 모드로 notepad 열기
+   # C:\Windows\System32\drivers\etc
+
+2. 3개 domain 추가 / 저장 ( 실습에서 쓰는건 jenkins만 사용 )
+   13.124.35.3 jenkins.tbiz-atcl.com
+   13.124.35.3 api.tbiz-atcl.net
+   13.124.35.3 bff.tbiz-atcl.net
+   # 13.124.35.3 gitlab.tbiz-atcl.com
 
 ################################################
-# [ Test용 RestAPI 호출 방법 ]
+# Jenkins Pipeline 구성
 ################################################
-1. /etc/hosts 에 Domain 추가
-	3.34.173.12 gitlab.tbiz-atcl.net
-	3.34.173.12 jenkins.tbiz-atcl.net
-	3.34.173.12 tbiz-atcl.net
-	
-2. Rest API 호출
-	# while true
-	# do
-	#    curl http://tbiz-atcl.net/api/get/salary/10001 | jq .
-	#    sleep 1
-	# done
+1. chrom 열고  http://jenkins.tbiz-atcl.net 접속 ( admin / 미나리12~! )
 
+2-1. New Item 클릭 / 입력 / OK
+   - Name : restapi_rds_select
+   - TYPE : Pipeline
+2-2. Pipeline > Definition > pipeline script from SCM  
+   - SCM : git
+           > Repository URL : https://github.com/${github ID}/restapi_rds_select.git
+	   > Credential     : Add > jenkins 누르고 ( github ID / PWD 입력 )
 
--------------------- Merge 해라 ------------------------
-
-
-###############################################################################
-[ ECR 생성 ]
-###############################################################################
-1. ECR 생성
-2. ECR 프로젝트 생성
-   - restapi
-   - bff-atcl
-3. 각 프로젝트에 Permission 설정
-   - ECR > Repositories > bff-atcl > Permissions > Edit poicy JSON
-   
-{
-  "Version": "2008-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowPushPull",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:BatchGetImage",
-        "ecr:CompleteLayerUpload",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:InitiateLayerUpload",
-        "ecr:PutImage",
-        "ecr:UploadLayerPart"
-      ]
-    }
-  ]
-}
+3-1. New Item 클릭 / 입력 / OK
+   - Name : bff_atcl
+   - TYPE : Pipeline
+3-2. Pipeline > Definition > pipeline script from SCM
+   - SCM : git
+           > Repository URL : https://github.com/${github ID}/bff_atcl.git
+           > Credential     : Add > jenkins 누르고 ( github ID / PWD 입력 )
 
 ###############################################################################
-[ EFS-Provisioner 구성 ( EKS + Helm ) ]
+# 서비스 호출
 ###############################################################################
-
-
-
-###############################################################################
-[ Jenkins 구성 ( EKS + Helm ) ]
-###############################################################################
-
-
-
-###############################################################################
-[ GITHUB 준비 ]
-###############################################################################
-0. 준비 ( Bastion 서버 )
-   # mkdir ~/git
-   # cd ~/git
-
-1. Sample Git 가져오기
-   # git clone https://github.com/meditch05/restapi_rds_select.git
-   # git clone https://github.com/meditch05/bff_atcl.git
-   
-2. 각자의 Git 프로젝트 생성 ( github 로그인 )
-   - restapi_rds_select_skcc05599
-   - bff_atcl_skcc05599
-   
-3. 각자의 Git 프로젝트 가져오기
-   # git clone https://github.com/skcc05599/restapi_rds_select_skcc05599.git
-   # git clone https://github.com/skcc05599/bff_atcl_skcc05599.git
-   
-4. Sample 소스를 각자의 프로젝트에 Copy
-   # cp -Rp ./restapi_rds_select/*          restapi_rds_select_skcc05599
-   # cp -Rp ./restapi_rds_select/.gitignore restapi_rds_select_skcc05599
-   # cp -Rp ./bff_atcl/*                    bff_atcl_skcc05599
-   # cp -Rp ./bff_atcl/.gitignore           bff_atcl_skcc05599
-
-5. 각자의 프로젝트에 소스 Push
-   # cd ~/git/restapi_rds_select_skcc05599
-   # git add *
-   # git add .gitignore
-   # git commit -m init
-   # git push
-   
-   # cd ~/git/restapi_rds_select_skcc05599
-   # git add *
-   # git add .gitignore
-   # git commit -m init
-   # git push
-   
-   
-###############################################################################
-[ Eclipse 프로젝트 생성 ( Git repository Clone > 프로젝트 생성 ]
-###############################################################################
-   
-1. Eclipse -> 프로젝트 선택 -> Congifure -> Convert to Maven Project 
-
-
-
-
-###############################################################################
-[ 서비스 호출 ]
-###############################################################################
-
 1. RestAPI 호출
    http://api.tbiz-atcl.net/get/salary/10051
-   
+
 2. Web 화면 호출 ( WEB에서 RestAPI 호출한걸 JSP 통해서 WEB 화면으로 View )
    http://bff.tbiz-atcl.net/view/select/10051
-	
-	
 
+
+
+###############################################################################
+#  Eclipse - Git 연결
+###############################################################################
+1. Eclipse > Git > clone a git repository > https://github.com/${github ID}/restapi_rds_select.git
+2. Eclipse > Git > clone a git repository > https://github.com/${github ID}/bff_atcl.git
+
+###############################################################################
+#  Eclipse - 프로젝트 생성
+###############################################################################
+3. Eclipse > Java > import > Git ( Projects from Git (with smart import ) > Existing local repository > restapi_rds_select
+4. Eclipse > Java > import > Git ( Projects from Git (with smart import ) > Existing local repository > bff_atcl
+
+소스 수정하고 Jenkins에서 "Build Now" 수행

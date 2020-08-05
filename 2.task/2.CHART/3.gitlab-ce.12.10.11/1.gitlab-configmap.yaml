@@ -25,10 +25,10 @@ metadata:
     file: gitlab.rb
 data:
   gitlab.rb: |-
-    external_url = 'gitlab.ffptest.com'
+    external_url = 'gitlab.tbiz-atcl.net'
     gitlab_rails['initial_root_password'] = "alskfl12~!"
-    # registry_external_url 'https://gitlab.mwportal.com'
-    nginx['client_max_body_size'] = '1024m'
+    #registry_external_url 'http://gitlab.tbiz-atcl.net'
+    nginx['client_max_body_size'] = '10240m'
 
     ################################
     # Prometheus ( External )
