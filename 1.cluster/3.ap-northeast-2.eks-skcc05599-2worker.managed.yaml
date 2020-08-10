@@ -28,10 +28,12 @@ managedNodeGroups:
     volumeSize: 20
     ssh:
       allow: true
-    #iam:
-    #  withAddonPolicies:
-    #    ebs: true    # CSI Driver
-    #    efs: true    # CSI Driver
-    #    autoScaler: true
-    #    cloudWatch: true
-    #    imageBuilder: true
+    iam:
+      withAddonPolicies:
+        externalDNS: true  # for Route53
+        certManager: true  # for ACM
+        ebs: true          # for EBS, CSI Driver
+        efs: true          # for EFS, CSI Driver
+        imageBuilder: true # for ECR
+        autoScaler: true
+        cloudWatch: true
