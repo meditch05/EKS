@@ -69,6 +69,22 @@
      * 발급자   : Amazon
      * 유효기간 : 2020-08-10 ~ 201-09-10
 
+
+# Annotaion Reference
+  -> https://kubernetes.io/ko/docs/concepts/services-networking/service/
+  -> https://kubernetes.io/ko/docs/concepts/cluster-administration/cloud-providers/
+
+  -> https://velog.io/@umi0410/eks-k8s-elb
+
+  -> https://github.com/kubernetes/ingress-nginx/issues/5051 #( ********************)
+     # kc edit cm/ingress-controller-leader-external-nginx  -n infra
+     data:
+       use-forwarded-headers: "true"
+       compute-full-forwarded-for: "true"
+       use-proxy-protocol: "true"
+
+  -> https://www.digitalocean.com/community/questions/how-to-set-up-nginx-ingress-for-load-balancers-with-proxy-protocol-support
+
 #######################################################################################
 # EKS + CI/CD 실습 Script 가져오기
 #######################################################################################
