@@ -31,8 +31,7 @@ controller:
     https: 443
 
   # Will add custom configuration options to Nginx https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
-  config:
-    - use-proxy-protocol: "true"
+  config: {}
 
   # Maxmind license key to download GeoLite2 Databases
   # https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases
@@ -262,10 +261,12 @@ controller:
     annotations:
       service.beta.kubernetes.io/aws-load-balancer-type: nlb
       service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
-      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:ap-northeast-2:847322629192:certificate/08a537cc-4d72-42f5-89c5-e27e5605dbbb  # Edit Here for AWS Cert-Manager ARN
-      service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: '60'
-      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: 'true'
+      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: https
+      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:ap-northeast-2:847322629192:certificate/08a537cc-4d72-42f5-89c5-e27e5605dbbb
+      service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+      service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "60"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
     labels: {}
     ## Deprecated, instead simply do not provide a clusterIP value
     omitClusterIP: false
@@ -299,7 +300,7 @@ controller:
 
     targetPorts:
       http: http
-      https: https
+      https: http
 
     type: LoadBalancer
 
