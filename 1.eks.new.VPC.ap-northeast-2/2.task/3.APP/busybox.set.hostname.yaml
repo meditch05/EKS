@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-hostname
+  namespace: infra
+  labels:
+    app: busybox-hostname
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: busybox-hostname
+  template:
+    metadata:
+      labels:
+        app: busybox-hostname
+    spec:
+      restartPolicy: Always
+      hostname: bbox-skt-host
+      containers:
+      - name: busybox
+        image: busybox:latest
+        imagePullPolicy: Always # IfNotPresent
+        command:
+          - tail
+          - -f
+          - /dev/null

@@ -1,0 +1,44 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: skcc05599
+  region: ap-northeast-2
+  version: "1.18"
+vpc:
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+  id: vpc-0589fa4695452a7f3
+  subnets:
+    private:
+      ap-northeast-2a: { id: subnet-0eae769931f79adf3 }
+      ap-northeast-2b: { id: subnet-0d51bb20c0dfc32d5 }
+      ap-northeast-2c: { id: subnet-03f408615243234ef }
+managedNodeGroups:
+  - name: private-worker
+    tags:
+      nodegroup-role: worker
+      creator: skcc05599
+    labels:
+      role: worker
+      nodegroup-type: managed
+      ec2-type: t3a.small   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
+    instanceType: t3.small
+    #availabilityZones: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]    
+    privateNetworking: true
+    minSize: 2
+    maxSize: 4
+    desiredCapacity: 2
+    volumeSize: 20
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        externalDNS: true  # for Route53
+        certManager: true  # for ACM
+        ebs: true          # for EBS, CSI Driver
+        efs: true          # for EFS, CSI Driver
+        imageBuilder: true # for ECR
+        autoScaler: true
+        cloudWatch: true

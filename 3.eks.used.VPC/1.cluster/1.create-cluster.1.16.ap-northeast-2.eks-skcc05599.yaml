@@ -1,0 +1,21 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: skcc05599
+  region: ap-northeast-2
+  version: "1.18"
+vpc:
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+  id: vpc-0589fa4695452a7f3
+  subnets:
+    public:
+      ap-northeast-2a: { id: subnet-0be9dd1dd24494211 }
+      ap-northeast-2b: { id: subnet-01a9db3bfae067b83 }
+      ap-northeast-2c: { id: subnet-003a4b50552a488e4 }
+    private:
+      ap-northeast-2a: { id: subnet-0eae769931f79adf3 }
+      ap-northeast-2b: { id: subnet-0d51bb20c0dfc32d5 }
+      ap-northeast-2c: { id: subnet-03f408615243234ef }

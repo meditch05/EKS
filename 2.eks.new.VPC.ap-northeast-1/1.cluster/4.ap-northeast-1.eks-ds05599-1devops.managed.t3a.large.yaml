@@ -1,0 +1,37 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: ds05599
+  region: ap-northeast-1
+  version: "1.18"
+vpc:
+  cidr: 100.64.0.0/21       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+managedNodeGroups:
+  - name: devops-node
+    tags:
+      nodegroup-name: devops
+      creator: ds05599
+    labels:
+      role: devops
+      nodegroup-type: managed
+      ec2-type: t3a.large   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
+    instanceType: t3a.large
+    availabilityZones: ["ap-northeast-1a", "ap-northeast-1c", "ap-northeast-1d"]
+    minSize: 1 
+    maxSize: 2
+    desiredCapacity: 1
+    volumeSize: 40
+    privateNetworking: true
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        ebs: true    # CSI Driver
+        efs: true    # CSI Driver
+        autoScaler: true
+        cloudWatch: true
+        imageBuilder: true

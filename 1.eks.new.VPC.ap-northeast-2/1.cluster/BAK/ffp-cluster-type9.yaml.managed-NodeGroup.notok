@@ -1,0 +1,77 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: ffp-cluster-type3
+  region: ap-northeast-2
+  version: "1.15"
+vpc:
+  id: vpc-011c2cc9193514f37             # (optional, must match VPC ID used for each subnet below)
+  cidr: 10.16.0.0/16                    # 10.16.0.0   ~ 10.16.255.255, 65536 (optional, must match CIDR used by the given VPC)
+  subnets:
+    private: # AWS > VPC > List
+      ap-northeast-2a: # Only 1 ID
+        id: subnet-05bc6ff256d9331e1
+        cidr: 10.16.0.128/26            # 10.16.0.128 ~ 10.16.0.191, 64(59) (optional, must match CIDR used by the given subnet)
+      ap-northeast-2b: # Only 1 ID      # Create by Manual
+        id: subnet-082cbab927e1e0478    # Create by Manual    
+        cidr: 10.16.64.128/26           # 10.16.64.128 ~ 10.16.64.191, 64(59) (optional, must match CIDR used by the given subnet)
+      ap-northeast-2c: # Only 1 ID      
+        id: subnet-04ddb746faf669cc8    
+        cidr: 10.16.32.128/26           # 10.16.32.128 ~ 10.16.32.191, 64(59) (optional, must match CIDR used by the given subnet)
+      #ap-northeast-2a: # Only 1 ID
+      #  id: subnet-05bc6ff256d9331e1
+      #  cidr: 10.16.0.128/26           # 10.16.0.128 ~ 10.16.0.191, 64 (optional, must match CIDR used by the given subnet)
+      #ap-northeast-2a: # Only 1 ID
+      #  id: subnet-052ed3f3fe2907970
+      #  cidr: 10.16.0.192/26           # 10.16.0.192 ~ 10.16.0.255, 64 (optional, must match CIDR used by the given subnet)
+      #ap-northeast-2c: # Only 1 ID
+      #  id: subnet-04ddb746faf669cc8
+      #  cidr: 10.16.32.128/26          # 10.16.32.128 ~ 10.16.32.191, 64 (optional, must match CIDR used by the given subnet)
+      #ap-northeast-2c: # Only 1 ID
+      #  id: subnet-089d79ab2cd850a02
+      #  cidr: 10.16.32.192/26          # 10.16.32.192 ~ 10.16.32.255, 64 (optional, must match CIDR used by the given subnet)
+  #nat:
+  #  gateway: HighlyAvailable           # other options: Disable, Single (default)
+managedNodeGroups:   # no tag : volumeType, ami, privateNetworking, preBootstrapCommands
+  - name: ffp-managed-ng-worker
+    tags:
+      nodegroup-name: ffp-managed-ng-worker
+    labels:
+      role: worker
+      nodegroup-type: managed
+      node-class: t3.medium
+    instanceType: t3.medium
+    minSize: 3
+    maxSize: 6
+    desiredCapacity: 3
+    volumeSize: 40
+    #volumeType: gp2
+    #ami: ami-08a18de5609e8f781
+    #privateNetworking: true
+    iam:
+      withAddonPolicies:
+        ########################################################################
+        # An example of ClusterConfig object with access to CSI drivers:
+        ########################################################################
+        ebs: true    # CSI Driver
+        efs: true    # CSI Driver
+        fsx: true    # CSI Driver
+        ########################################################################
+        # An example of ClusterConfig object compatible with the "app-dev" quickstart
+        # profile. See also: https://github.com/weaveworks/eks-quickstart-app-dev
+        ########################################################################
+        albIngress: true
+        autoScaler: true
+        cloudWatch: true
+    #preBootstrapCommands:
+    #  # allow docker registries to be deployed as cluster service ( Need. ECR )
+    #  - 'echo {\"insecure-registries\": [\"644960261046.dkr.ecr.ap-northeast-2.amazonaws.com\"]} > /etc/docker/daemon.json'
+    #  - "systemctl restart docker"
+#cloudWatch:
+#  clusterLogging:
+#    # enable specific types of cluster control plane logs
+#    enableTypes: ["audit", "authenticator", "controllerManager"]
+#    # all supported types: "api", "audit", "authenticator", "controllerManager", "scheduler"
+#    # supported special values: "*" and "all
+---

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox
+  namespace: infra
+  labels:
+    app: busybox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: busybox
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: busybox
+        image: 592806604814.dkr.ecr.ap-northeast-1.amazonaws.com/busybox:latest
+        imagePullPolicy: Always # IfNotPresent
+        command:
+          - tail
+          - -f
+          - /dev/null

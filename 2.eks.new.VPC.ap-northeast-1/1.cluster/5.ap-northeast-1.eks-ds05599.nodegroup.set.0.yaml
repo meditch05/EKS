@@ -1,0 +1,76 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: ds05599
+  region: ap-northeast-1
+  version: "1.18"
+vpc:
+  cidr: 100.64.0.0/21       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+managedNodeGroups:
+  - name: worker-node
+    tags:
+      nodegroup-role: worker
+      creator: ds05599
+    labels:
+      role: worker
+      nodegroup-type: managed
+      ec2-type: t3a.small   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
+    instanceType: t3.small
+    availabilityZones: ["ap-northeast-1a", "ap-northeast-1c", "ap-northeast-1d"]    
+    privateNetworking: true
+    minSize: 0
+    maxSize: 4
+    desiredCapacity: 0
+    volumeSize: 20
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        externalDNS: true  # for Route53
+        certManager: true  # for ACM
+        ebs: true          # for EBS, CSI Driver
+        efs: true          # for EFS, CSI Driver
+        imageBuilder: true # for ECR
+        autoScaler: true
+        cloudWatch: true
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: ds05599
+  region: ap-northeast-1
+  version: "1.18"
+vpc:
+  cidr: 100.64.0.0/21       # Main CIDR 100.64.0.0 : 100.64.0.0 ~ 100.64.7.255
+  clusterEndpoints:
+    privateAccess: true
+    publicAccess: true
+managedNodeGroups:
+  - name: devops-node
+    tags:
+      nodegroup-name: devops
+      creator: ds05599
+    labels:
+      role: devops
+      nodegroup-type: managed
+      ec2-type: t3a.large   # t3a.medium = 2/4, t3a.large = 2/8 => t3.medium under MemoryPressure during gitlab & jenkins
+    instanceType: t3a.large
+    availabilityZones: ["ap-northeast-1a", "ap-northeast-1c", "ap-northeast-1d"]
+    minSize: 0
+    maxSize: 2
+    desiredCapacity: 0
+    volumeSize: 40
+    privateNetworking: true
+    ssh:
+      allow: true
+    iam:
+      withAddonPolicies:
+        ebs: true    # CSI Driver
+        efs: true    # CSI Driver
+        autoScaler: true
+        cloudWatch: true
+        imageBuilder: true

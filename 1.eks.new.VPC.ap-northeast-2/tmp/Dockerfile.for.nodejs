@@ -1,0 +1,14 @@
+FROM centos/nodejs-8-centos7:latest
+
+ENV container docker
+USER root
+WORKDIR /home/appadmin
+
+COPY package*.json ./
+RUN npm install && npm cache clean --force
+
+USER appadmin
+COPY server.js ./
+
+EXPOSE 8080
+CMD [ "npm", "start" ]

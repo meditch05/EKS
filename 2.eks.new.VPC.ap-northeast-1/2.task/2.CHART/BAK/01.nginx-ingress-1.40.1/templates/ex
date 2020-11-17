@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    meta.helm.sh/release-name: nginx-ingress-ex
+    meta.helm.sh/release-namespace: infra
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  creationTimestamp: "2020-07-15T05:07:47Z"
+  finalizers:
+  - service.kubernetes.io/load-balancer-cleanup
+  labels:
+    app: nginx-ingress
+    app.kubernetes.io/managed-by: Helm
+    chart: nginx-ingress-1.40.1
+    component: controller
+    heritage: Helm
+    release: nginx-ingress-ex
+  name: nginx-ingress-ex-controller
+  namespace: infra
+  resourceVersion: "19506"
+  selfLink: /api/v1/namespaces/infra/services/nginx-ingress-ex-controller
+  uid: 46b374b3-d048-4a18-8b83-c1ac2a858c35
+spec:
+  clusterIP: 10.100.223.216
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    nodePort: 30153
+    port: 80
+    protocol: TCP
+    targetPort: http
+  - name: https
+    nodePort: 31752
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: nginx-ingress
+    app.kubernetes.io/component: controller
+    release: nginx-ingress-ex
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - hostname: a46b374b3d0484a188b83c1ac2a858c3-453ed1aa61d05096.elb.ap-northeast-2.amazonaws.com

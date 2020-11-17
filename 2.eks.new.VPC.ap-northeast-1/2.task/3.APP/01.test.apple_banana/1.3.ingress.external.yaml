@@ -1,0 +1,28 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: route53-external
+  namespace: test
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    #nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    #nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+spec:
+  rules:
+  - host: external.tbiz-atcl.net
+    http:
+      paths:
+        - path: /apple
+          backend:
+            serviceName: apple-service 
+            servicePort: 5678
+        - path: /banana
+          backend:
+            serviceName: banana-service 
+            servicePort: 5678
+  # This section is only required if TLS is to be enabled for the Ingress
+  #tls:
+  #    - hosts:
+  #        - www.example.com
+  #      secretName: example-tls

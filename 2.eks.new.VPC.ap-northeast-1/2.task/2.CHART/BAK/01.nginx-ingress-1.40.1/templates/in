@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    meta.helm.sh/release-name: nginx-ingress-in
+    meta.helm.sh/release-namespace: infra
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  creationTimestamp: "2020-07-15T05:07:56Z"
+  finalizers:
+  - service.kubernetes.io/load-balancer-cleanup
+  labels:
+    app: nginx-ingress
+    app.kubernetes.io/managed-by: Helm
+    chart: nginx-ingress-1.40.1
+    component: controller
+    heritage: Helm
+    release: nginx-ingress-in
+  name: nginx-ingress-in-controller
+  namespace: infra
+  resourceVersion: "19613"
+  selfLink: /api/v1/namespaces/infra/services/nginx-ingress-in-controller
+  uid: 7c6e6e27-e7f8-43e6-9ec8-098a9136e07d
+spec:
+  clusterIP: 10.100.90.237
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    nodePort: 32119
+    port: 80
+    protocol: TCP
+    targetPort: http
+  - name: https
+    nodePort: 32008
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: nginx-ingress
+    app.kubernetes.io/component: controller
+    release: nginx-ingress-in
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - hostname: a7c6e6e27e7f843e69ec8098a9136e07-11f25dc84b60cf9f.elb.ap-northeast-2.amazonaws.com
