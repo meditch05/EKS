@@ -40,10 +40,10 @@ annotations: {}
 efsProvisioner:
   # If specified, use this DNS or IP to connect the EFS
   # dnsName: "my-custom-efs-dns.com"
-  efsFileSystemId: fs-fdc7ff9c
-  awsRegion: ap-northeast-2
+  efsFileSystemId: fs-0cc0652c
+  awsRegion: ap-northeast-1
   path: /eks-pv
-  provisionerName: tbiz-actl.net/aws-efs
+  provisionerName: biz-think.net/aws-efs
   storageClass:
     name: aws-efs
     isDefault: false
